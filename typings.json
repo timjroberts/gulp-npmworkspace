@@ -1,0 +1,15 @@
+{
+    "ambientDependencies": {
+        "gulp": "github:DefinitelyTyped/DefinitelyTyped/gulp/gulp.d.ts",
+        "gulp-util": "github:DefinitelyTyped/DefinitelyTyped/gulp-util/gulp-util.d.ts",
+        "vinyl": "github:DefinitelyTyped/DefinitelyTyped/vinyl/vinyl.d.ts",
+        "chalk": "github:DefinitelyTyped/DefinitelyTyped/chalk/chalk.d.ts",
+        "q": "github:DefinitelyTyped/DefinitelyTyped/q/Q.d.ts",
+        "node": "github:DefinitelyTyped/DefinitelyTyped/node/node.d.ts",
+        "orchestrator": "github:DefinitelyTyped/DefinitelyTyped/orchestrator/orchestrator.d.ts",
+        "through2": "github:DefinitelyTyped/DefinitelyTyped/through2/through2.d.ts",
+        "rimraf": "github:DefinitelyTyped/DefinitelyTyped/rimraf/rimraf.d.ts",
+        "semver": "github:DefinitelyTyped/DefinitelyTyped/semver/semver.d.ts",
+        "underscore": "github:DefinitelyTyped/DefinitelyTyped/underscore/underscore.d.ts"
+    }
+}

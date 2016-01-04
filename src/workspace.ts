@@ -1,0 +1,302 @@
+import * as path from "path";
+import * as fs from "fs";
+import * as childProcess from "child_process";
+import * as gulp from "gulp";
+import * as util from "gulp-util";
+import * as through from "through2";
+import * as _ from "underscore";
+import * as semver from "semver";
+import * as rimraf from "rimraf";
+import {DepGraph} from "dependency-graph";
+import File = require("vinyl");
+
+import {Dictionary,
+        PackageDescriptor,
+        GulpReadWriteStream} from "./interfaces";
+import {NpmInstallOptions,
+        NpmScriptOptions,
+        PostInstallOption} from "./options";
+import {pluginName,
+        argv} from "./plugin";
+
+/**
+ * Returns a stream of 'package.json' files that have been found in the workspace. The files
+ * are streamed in dependency order.
+ *
+ * @param options A hash of options that can be passed through to gulp.src().
+ */
+export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
+    options = _.defaults(options || { }, { });
+
+    let packagesStream = gulp.src(["./*/package.json", "!./package.json"], options);
+    let packageGraph = new DepGraph();
+    let packageMap: Dictionary<File> = { };
+
+    let collector = <GulpReadWriteStream>through.obj((file: File, encoding, callback) => {
+        if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams are not supported."));
+
+        let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
+
+        packageGraph.addNode(packageDescriptor.name);
+        packageMap[packageDescriptor.name] = file;
+
+        let packageDependencies: Dictionary<string> = { };
+
+        _.extend(packageDependencies, packageDescriptor.dependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
+
+        for (let packageName in packageDependencies) {
+            packageGraph.addNode(packageName);
+            packageGraph.addDependency(packageDescriptor.name, packageName);
+        }
+
+        callback();
+    });
+
+    packagesStream.on("end", () => {
+        var collectorFunc = function(packageName) {
+            var packageFile = packageMap[packageName];
+
+            // Only stream packages that are in the workspace
+            if (!packageFile) return;
+
+            collector.push(packageFile);
+        };
+
+        if (argv.package) {
+            // Only return packages that are dependencies of (and including) the given
+            // starting package
+            packageGraph.dependenciesOf(argv.package).forEach(collectorFunc, this);
+            collectorFunc.call(this, argv.package);
+        }
+        else {
+            // Return all packages
+            packageGraph.overallOrder().forEach(collectorFunc, this);
+        }
+    });
+
+    return packagesStream.pipe(collector);
+}
+
+/**
+ * Accepts and returns a stream of 'package.json' files and applies a filter function to each one in order to
+ * determine if the file should be included in the returned stream or not.
+ *
+ * @param filterFunc A function that accepts a package descriptor and returns a boolean where false removes
+ * the file from the stream.
+ */
+export function filter(filterFunc: (packageDescriptor: PackageDescriptor) => boolean): NodeJS.ReadWriteStream {
+    return through.obj(function(file: File, encoding, callback) {
+        var packageDescriptor = JSON.parse(file.contents.toString());
+
+        if (filterFunc(packageDescriptor)) {
+            return callback(null, file);
+        }
+
+        callback();
+    });
+}
+
+/**
+ * Accepts and returns a stream of 'package.json' files and executes the given script for each one.
+ *
+ * @param scriptName The name of the script that should be executed.
+ * @param options A hash of options.
+ */
+export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJS.ReadWriteStream {
+    options = _.defaults(options || { }, { ignoreMissingScript: true, continueOnError: true });
+
+    return through.obj(function (file: File, encoding, callback) {
+        if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams not supported."));
+
+        let pathInfo = path.parse(file.path);
+
+        if (pathInfo.base !== "package.json") return callback(new util.PluginError(pluginName, "Expected a 'package.json' file."));
+
+        let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
+
+        util.log("Running script '" + scriptName + "' for workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+
+        if (!packageDescriptor.scripts[scriptName] && !options.ignoreMissingScript) {
+            let error = new Error("Workspace package '" + packageDescriptor.name + "' does not contain a '" + scriptName + "' script.");
+
+            util.log(util.colors.red(error.message));
+
+            return callback(error, null);
+        }
+
+        try {
+            let result = shellExecute(pathInfo.dir, packageDescriptor.scripts[scriptName]);
+
+            util.log(result);
+
+            callback(null, file);
+        }
+        catch (error) {
+            util.log("Error running script '" + scriptName + "' for workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+            util.log(util.colors.red(error));
+
+            callback(options.continueOnError ? null : error, file);
+        }
+    });
+}
+
+/**
+ * Accepts and returns a stream of 'package.json' files and installs the dependant packages for each one.
+ * Symbolic links are created for each dependant package if it is present in the workspace.
+ *
+ * @param options A hash of options.
+ */
+export function npmInstall(options?: NpmInstallOptions) {
+    options = _.defaults(options || { }, { continueOnError: true, minimizeSizeOnDisk: true });
+
+    let packageMap: Dictionary<string> = { };
+
+    return through.obj(function (file: File, encoding, callback) {
+        if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
+
+        let pathInfo = path.parse(file.path);
+
+        if (pathInfo.base !== "package.json") return callback(new util.PluginError("install", "Expected a 'package.json' file."));
+
+        let packageDescriptor = JSON.parse(file.contents.toString());
+
+        util.log("Installing workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+
+        packageMap[packageDescriptor.name] = pathInfo.dir;
+
+        let workspaceDependencies: Array<string> = [];
+        let packageDependencies: Array<string> = [];
+
+        let dependencyPath: string;
+
+        try {
+            for (let packageName in packageDescriptor.dependencies) {
+                dependencyPath = packageMap[packageName];
+
+                if (dependencyPath) {
+                    createPackageSymLink(pathInfo.dir, packageName, dependencyPath);
+
+                    continue;
+                }
+
+                packageDependencies.push(packageName + "@" + packageDescriptor.dependencies[packageName]);
+            }
+
+            let devDependencies: Dictionary<string> = { };
+
+            _.extend(devDependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
+
+            for (var packageName in devDependencies) {
+                dependencyPath = packageMap[packageName];
+
+                if (dependencyPath) {
+                    createPackageSymLink(pathInfo.dir, packageName, dependencyPath);
+
+                    continue;
+                }
+
+                if (!options.minimizeSizeOnDisk) {
+                    // Don't care about minimizing size on disk, so install it in the package
+                    packageDependencies.push(packageName + "@" + packageDescriptor.devDependencies[packageName]);
+
+                    continue;
+                }
+
+                let workspacePackagePath = path.join(process.cwd(), "node_modules", packageName);
+
+                if (!fs.existsSync(workspacePackagePath)) {
+                    // Doesn't exist in the workspace, so install it there
+                    workspaceDependencies.push(packageName + "@" + packageDescriptor.devDependencies[packageName]);
+                }
+                else {
+                    // Does exist in the workspace, so if the version there satisfies our version requirements do nothing
+                    // and we'll use that version; otherwise, install it in the package
+                    let workspacePackageVersion = require(path.join(workspacePackagePath, "package.json")).version;
+
+                    if (!semver.satisfies(workspacePackageVersion, packageDescriptor.devDependencies[packageName])) {
+                        packageDependencies.push(packageName + "@" + packageDescriptor.devDependencies[packageName]);
+
+                        util.log(util.colors.yellow("Package '" + packageName + "' cannot be satisfied by version " + workspacePackageVersion + ". Installing locally."));
+                    }
+                }
+            }
+
+            shellExecuteNpmInstall(pathInfo.dir, packageDependencies);
+            shellExecuteNpmInstall(process.cwd(), workspaceDependencies);
+
+            if (options.postInstall) {
+                let runPostInstall = true;
+
+                if (options.postInstall.condition) runPostInstall = options.postInstall.condition(packageDescriptor, pathInfo.dir);
+
+                if (runPostInstall && typeof options.postInstall.action === "string") {
+                    util.log("Running post-install action for workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+                    shellExecute(pathInfo.dir, <string>options.postInstall.action);
+                }
+            }
+
+            callback(null, file);
+        }
+        catch (error) {
+            util.log("Error installing workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+            util.log(util.colors.red(error));
+
+            callback(options.continueOnError ? null : error, file);
+        }
+    });
+}
+
+/**
+ * Accepts and returns a stream of 'package.json' files and uninstalls all dependant packages for each one.
+ */
+export function npmUninstall(): NodeJS.ReadWriteStream {
+    return through.obj(function (file: File, encoding, callback) {
+        if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
+
+        var pathInfo = path.parse(file.path);
+
+        if (pathInfo.base !== "package.json") return callback(new util.PluginError("install", "Expected a 'package.json' file."));
+
+        var packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
+
+        util.log("Uninstalling workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+
+        rimraf.sync(path.resolve(pathInfo.dir, "node_modules"));
+        rimraf.sync(path.resolve(process.cwd(), "node_modules"));
+
+        callback(null, file);
+    });
+}
+
+function createPackageSymLink(sourcePath: string, packageName: string, targetPath: string) {
+    sourcePath = path.resolve(sourcePath, "node_modules");
+
+    if (fs.existsSync(path.resolve(sourcePath, packageName))) return;
+    if (!fs.existsSync(sourcePath)) fs.mkdirSync(sourcePath);
+
+    fs.symlinkSync(targetPath, path.join(sourcePath, packageName), "dir");
+}
+
+
+function shellExecuteNpmInstall(path: string, packages: Array<string>) {
+    var installArgs = ["install"].concat(packages || []);
+
+    if (path === process.cwd()) {
+        installArgs.push("--ignore-scripts");
+    }
+
+    installArgs.push("--production");
+
+    var result = childProcess.spawnSync("npm", installArgs, { cwd: path });
+
+    if (result.status !== 0) throw new Error(result.stderr.toString());
+}
+
+
+function shellExecute(path: string, shellCommand: string) {
+    shellCommand = shellCommand.replace(/node_modules|\.\/node_modules/g, "../node_modules");
+
+    var result = childProcess.execSync(shellCommand, { cwd: path });
+
+    return result.toString();
+}
