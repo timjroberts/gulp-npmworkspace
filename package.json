@@ -23,6 +23,7 @@
     },
     "devDependencies": {
         "typings": "0.4.1",
-        "typescript": "1.7.5"
+        "typescript": "1.7.5",
+        "gulp-release-it": "1.0.7"
     }
 }

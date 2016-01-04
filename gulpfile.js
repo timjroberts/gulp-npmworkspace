@@ -4,6 +4,8 @@ var childProcess = require("child_process");
 var path = require("path");
 var through = require("through2");
 
+require('gulp-release-it')(gulp);
+
 function compileProject() {
     return through.obj(function(file, encoding, callback) {
         var pathInfo = path.parse(file.path);
