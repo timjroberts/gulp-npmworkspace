@@ -1,0 +1,6 @@
+local_typings
+src
+typings
+gulpfile.js
+tsconfig.json
+typings.json

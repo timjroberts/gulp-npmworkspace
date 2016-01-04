@@ -7,9 +7,11 @@ var through = require("through2");
 function compileProject() {
     return through.obj(function(file, encoding, callback) {
         var pathInfo = path.parse(file.path);
-        var result = childProcess.execSync("\"./node_modules/.bin/tsc\"", { cwd: pathInfo.dir });
-
-        util.log(result.toString());
+        try {
+            childProcess.execSync("\"./node_modules/.bin/tsc\"", { cwd: pathInfo.dir });    
+        } catch (error) {
+            util.log(util.colors.red(error.stdout.toString()));
+        }
 
         callback(null, file);
     });

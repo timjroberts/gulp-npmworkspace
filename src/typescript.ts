@@ -13,7 +13,7 @@ import {pluginName} from "./plugin";
 /**
  * Accepts and returns a stream of 'package.json' files and executes the TypeScript compiler for each one.
  */
-export function buildProject(): NodeJS.ReadWriteStream {
+export function buildTypeScriptProject(): NodeJS.ReadWriteStream {
     return through.obj(function(file: File, encoding, callback) {
         if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
 
