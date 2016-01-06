@@ -14,7 +14,16 @@ This package was heaviliy inspired by https://github.com/mariocasciaro/npm-works
 var gulp = require("gulp");
 var workspace = require("gulp-npmworkspace");
 
+gulp.task("install-workspace", function() {
+    return workspace.workspacePackages()
+        .pipe(workspace.npmInstall());
+});
 
+gulp.task("compile", function() {
+    // Build TypeScript projects in dependency order!
+    return workspace.workspacePackages()
+        .pipe(workspace.buildTypeScriptProject());
+});
 ```
 
 ## Exported Functions
