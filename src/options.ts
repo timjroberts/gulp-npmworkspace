@@ -19,6 +19,10 @@ export interface NpmScriptOptions {
     continueOnError?: boolean;
 }
 
+export interface PostIntallAction {
+    (packageDescriptor: PackageDescriptor, path: string): void;
+}
+
 /**
  * Options for post installation.
  */
@@ -33,7 +37,7 @@ export interface PostInstallOption {
      * The action to execute.
      * If the action is a string, then the action is executed in the shell; otherwise the action is a function.
      */
-    action: string | Function;
+    action: string | PostIntallAction;
 }
 
 /**
@@ -41,7 +45,7 @@ export interface PostInstallOption {
  */
 export interface NpmInstallOptions {
     /**
-     * true to continue streaming 'package.json' files if the script errors.
+     * true to continue streaming 'package.json' files if the installation errors.
      *
      * Defaults to true.
      */
@@ -49,7 +53,8 @@ export interface NpmInstallOptions {
 
     /**
      * true to apply an installation strategy that attempts to install all devDependencies
-     * in the root of the workspace.
+     * in the root of the workspace. If a required version cannot be satified by the version
+     * installed at the workspace level, then the package is installed locally.
      *
      * Defaults to true.
      */

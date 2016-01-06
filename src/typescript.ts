@@ -15,7 +15,7 @@ import {pluginName} from "./plugin";
  */
 export function buildTypeScriptProject(): NodeJS.ReadWriteStream {
     return through.obj(function(file: File, encoding, callback) {
-        if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
+        if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams not supported."));
 
         let pathInfo = path.parse(file.path);
 
@@ -23,10 +23,10 @@ export function buildTypeScriptProject(): NodeJS.ReadWriteStream {
 
         var packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
-        util.log("Compiling workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+        util.log(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         if (!fs.existsSync(path.join(pathInfo.dir, "tsconfig.json"))) {
-            util.log(util.colors.yellow("Workspace package '" + packageDescriptor.name + "' does not contain a TypeScript project file (tsconfig.json)."));
+            util.log(util.colors.yellow(`Workspace package '${packageDescriptor.name}' does not contain a TypeScript project file (tsconfig.json).`));
 
             return callback(null, file);
         }

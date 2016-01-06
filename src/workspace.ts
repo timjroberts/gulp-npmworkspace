@@ -15,7 +15,8 @@ import {Dictionary,
         GulpReadWriteStream} from "./interfaces";
 import {NpmInstallOptions,
         NpmScriptOptions,
-        PostInstallOption} from "./options";
+        PostInstallOption,
+        PostIntallAction} from "./options";
 import {pluginName,
         argv} from "./plugin";
 
@@ -65,6 +66,13 @@ export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
         if (argv.package) {
             // Only return packages that are dependencies of (and including) the given
             // starting package
+
+            if (!packageMap[argv.package]) {
+                util.log(util.colors.red(`Package '${util.colors.cyan(argv.package)}' could not be found in the workspace.`));
+
+                return;
+            }
+
             packageGraph.dependenciesOf(argv.package).forEach(collectorFunc, this);
             collectorFunc.call(this, argv.package);
         }
@@ -114,10 +122,10 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
 
         let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
-        util.log("Running script '" + scriptName + "' for workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+        util.log(`Running script '${scriptName}' for workspace package '${util.colors.cyan(packageDescriptor.name)}`);
 
         if (!packageDescriptor.scripts[scriptName] && !options.ignoreMissingScript) {
-            let error = new Error("Workspace package '" + packageDescriptor.name + "' does not contain a '" + scriptName + "' script.");
+            let error = new Error(`Workspace package '${packageDescriptor.name}' does not contain a '${scriptName}' script.`);
 
             util.log(util.colors.red(error.message));
 
@@ -132,7 +140,7 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
             callback(null, file);
         }
         catch (error) {
-            util.log("Error running script '" + scriptName + "' for workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+            util.log(util.colors.red(`Error running script '${scriptName}' for workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
             util.log(util.colors.red(error));
 
             callback(options.continueOnError ? null : error, file);
@@ -142,7 +150,7 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
 
 /**
  * Accepts and returns a stream of 'package.json' files and installs the dependant packages for each one.
- * Symbolic links are created for each dependant package if it is present in the workspace.
+ * Symbolic links are created for each dependency if it is present in the workspace.
  *
  * @param options A hash of options.
  */
@@ -160,7 +168,7 @@ export function npmInstall(options?: NpmInstallOptions) {
 
         let packageDescriptor = JSON.parse(file.contents.toString());
 
-        util.log("Installing workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+        util.log(`Installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         packageMap[packageDescriptor.name] = pathInfo.dir;
 
@@ -216,7 +224,7 @@ export function npmInstall(options?: NpmInstallOptions) {
                     if (!semver.satisfies(workspacePackageVersion, packageDescriptor.devDependencies[packageName])) {
                         packageDependencies.push(packageName + "@" + packageDescriptor.devDependencies[packageName]);
 
-                        util.log(util.colors.yellow("Package '" + packageName + "' cannot be satisfied by version " + workspacePackageVersion + ". Installing locally."));
+                        util.log(util.colors.yellow(`Package '${packageName}' cannot be satisfied by version ${workspacePackageVersion}. Installing locally.`));
                     }
                 }
             }
@@ -229,16 +237,20 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                 if (options.postInstall.condition) runPostInstall = options.postInstall.condition(packageDescriptor, pathInfo.dir);
 
+                util.log(`Running post-install action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
                 if (runPostInstall && typeof options.postInstall.action === "string") {
-                    util.log("Running post-install action for workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
                     shellExecute(pathInfo.dir, <string>options.postInstall.action);
+                }
+                else if (runPostInstall && typeof options.postInstall.action === "function") {
+                    (<PostIntallAction>options.postInstall.action)(packageDescriptor, pathInfo.dir);
                 }
             }
 
             callback(null, file);
         }
         catch (error) {
-            util.log("Error installing workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+            util.log(`Error installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
             util.log(util.colors.red(error));
 
             callback(options.continueOnError ? null : error, file);
@@ -259,7 +271,7 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
 
         var packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
-        util.log("Uninstalling workspace package '" + util.colors.cyan(packageDescriptor.name) + "'");
+        util.log(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         rimraf.sync(path.resolve(pathInfo.dir, "node_modules"));
         rimraf.sync(path.resolve(process.cwd(), "node_modules"));
@@ -287,7 +299,7 @@ function shellExecuteNpmInstall(path: string, packages: Array<string>) {
 
     installArgs.push("--production");
 
-    var result = childProcess.spawnSync("npm", installArgs, { cwd: path });
+    var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", installArgs, { cwd: path });
 
     if (result.status !== 0) throw new Error(result.stderr.toString());
 }
