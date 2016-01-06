@@ -10,6 +10,8 @@
         "through2": "github:DefinitelyTyped/DefinitelyTyped/through2/through2.d.ts",
         "rimraf": "github:DefinitelyTyped/DefinitelyTyped/rimraf/rimraf.d.ts",
         "semver": "github:DefinitelyTyped/DefinitelyTyped/semver/semver.d.ts",
-        "underscore": "github:DefinitelyTyped/DefinitelyTyped/underscore/underscore.d.ts"
+        "underscore": "github:DefinitelyTyped/DefinitelyTyped/underscore/underscore.d.ts",
+        "glob": "github:DefinitelyTyped/DefinitelyTyped/glob/glob.d.ts",
+        "minimatch": "github:DefinitelyTyped/DefinitelyTyped/minimatch/minimatch.d.ts"
     }
 }

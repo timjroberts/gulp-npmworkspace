@@ -13,10 +13,12 @@ import File = require("vinyl");
 import {Dictionary,
         PackageDescriptor,
         GulpReadWriteStream} from "./interfaces";
+
 import {NpmInstallOptions,
         NpmScriptOptions,
         PostInstallOption,
         PostIntallAction} from "./options";
+
 import {pluginName,
         argv} from "./plugin";
 
@@ -54,7 +56,7 @@ export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
     });
 
     packagesStream.on("end", () => {
-        var collectorFunc = function(packageName) {
+        let collectorFunc = function(packageName) {
             var packageFile = packageMap[packageName];
 
             // Only stream packages that are in the workspace
@@ -280,7 +282,7 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
     });
 }
 
-function createPackageSymLink(sourcePath: string, packageName: string, targetPath: string) {
+function createPackageSymLink(sourcePath: string, packageName: string, targetPath: string): void {
     sourcePath = path.resolve(sourcePath, "node_modules");
 
     if (fs.existsSync(path.resolve(sourcePath, packageName))) return;
@@ -290,25 +292,25 @@ function createPackageSymLink(sourcePath: string, packageName: string, targetPat
 }
 
 
-function shellExecuteNpmInstall(path: string, packages: Array<string>) {
+function shellExecuteNpmInstall(packagePath: string, packages: Array<string>): void {
     var installArgs = ["install"].concat(packages || []);
 
-    if (path === process.cwd()) {
+    if (packagePath === process.cwd()) {
         installArgs.push("--ignore-scripts");
     }
 
     installArgs.push("--production");
 
-    var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", installArgs, { cwd: path });
+    var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", installArgs, { cwd: packagePath });
 
     if (result.status !== 0) throw new Error(result.stderr.toString());
 }
 
 
-function shellExecute(path: string, shellCommand: string) {
+function shellExecute(packagePath: string, shellCommand: string): string {
     shellCommand = shellCommand.replace(/node_modules|\.\/node_modules/g, "../node_modules");
 
-    var result = childProcess.execSync(shellCommand, { cwd: path });
+    var result = childProcess.execSync(shellCommand, { cwd: packagePath });
 
     return result.toString();
 }

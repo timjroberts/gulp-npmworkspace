@@ -65,3 +65,22 @@ export interface NpmInstallOptions {
      */
     postInstall?: PostInstallOption;
 }
+
+/**
+ * Options for buildTypeScriptProject().
+ */
+export interface TypeScriptCompileOptions {
+    /**
+     * true to continue streaming 'package.json' files if the TypeScript compilation yields errors.
+     *
+     * Defaults to true.
+     */
+    continueOnError?: boolean;
+
+    /**
+     * true to attempt compiling only .ts files that are newer than their .js counterparts.
+     *
+     * Defaults to true.
+     */
+    fastCompile?: boolean;
+}
