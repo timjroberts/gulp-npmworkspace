@@ -20,6 +20,7 @@ import {NpmInstallOptions,
         PostIntallAction} from "./options";
 
 import {pluginName,
+        Logger,
         argv} from "./plugin";
 
 /**
@@ -70,7 +71,7 @@ export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
             // starting package
 
             if (!packageMap[argv.package]) {
-                util.log(util.colors.red(`Package '${util.colors.cyan(argv.package)}' could not be found in the workspace.`));
+                Logger.error(util.colors.red(`Package '${util.colors.cyan(argv.package)}' could not be found in the workspace.`));
 
                 return;
             }
@@ -124,12 +125,12 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
 
         let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
-        util.log(`Running script '${scriptName}' for workspace package '${util.colors.cyan(packageDescriptor.name)}`);
+        Logger.info(`Running script '${scriptName}' for workspace package '${util.colors.cyan(packageDescriptor.name)}`);
 
         if (!packageDescriptor.scripts[scriptName] && !options.ignoreMissingScript) {
             let error = new Error(`Workspace package '${packageDescriptor.name}' does not contain a '${scriptName}' script.`);
 
-            util.log(util.colors.red(error.message));
+            Logger.error(util.colors.red(error.message));
 
             return callback(error, null);
         }
@@ -137,13 +138,13 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
         try {
             let result = shellExecute(pathInfo.dir, packageDescriptor.scripts[scriptName]);
 
-            util.log(result);
+            Logger.verbose(result);
 
             callback(null, file);
         }
         catch (error) {
-            util.log(util.colors.red(`Error running script '${scriptName}' for workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
-            util.log(util.colors.red(error));
+            Logger.error(util.colors.red(`Error running script '${scriptName}' for workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
+            Logger.error(util.colors.red(error));
 
             callback(options.continueOnError ? null : error, file);
         }
@@ -170,7 +171,7 @@ export function npmInstall(options?: NpmInstallOptions) {
 
         let packageDescriptor = JSON.parse(file.contents.toString());
 
-        util.log(`Installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+        Logger.info(`Installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         packageMap[packageDescriptor.name] = pathInfo.dir;
 
@@ -185,6 +186,8 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                 if (dependencyPath) {
                     createPackageSymLink(pathInfo.dir, packageName, dependencyPath);
+
+                    Logger.verbose(`Linked '${util.colors.cyan(packageName)}' (-> '${util.colors.blue(dependencyPath)}')`);
 
                     continue;
                 }
@@ -201,6 +204,8 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                 if (dependencyPath) {
                     createPackageSymLink(pathInfo.dir, packageName, dependencyPath);
+
+                    Logger.verbose(`Linked '${util.colors.cyan(packageName)}' (-> '${util.colors.blue(dependencyPath)}')`);
 
                     continue;
                 }
@@ -226,7 +231,7 @@ export function npmInstall(options?: NpmInstallOptions) {
                     if (!semver.satisfies(workspacePackageVersion, packageDescriptor.devDependencies[packageName])) {
                         packageDependencies.push(packageName + "@" + packageDescriptor.devDependencies[packageName]);
 
-                        util.log(util.colors.yellow(`Package '${packageName}' cannot be satisfied by version ${workspacePackageVersion}. Installing locally.`));
+                        Logger.warn(util.colors.yellow(`Package '${packageName}' cannot be satisfied by version ${workspacePackageVersion}. Installing locally.`));
                     }
                 }
             }
@@ -239,7 +244,7 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                 if (options.postInstall.condition) runPostInstall = options.postInstall.condition(packageDescriptor, pathInfo.dir);
 
-                util.log(`Running post-install action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+                Logger.info(`Running post-install action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
                 if (runPostInstall && typeof options.postInstall.action === "string") {
                     shellExecute(pathInfo.dir, <string>options.postInstall.action);
@@ -252,8 +257,8 @@ export function npmInstall(options?: NpmInstallOptions) {
             callback(null, file);
         }
         catch (error) {
-            util.log(`Error installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
-            util.log(util.colors.red(error));
+            Logger.error(`Error installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+            Logger.error(util.colors.red(error));
 
             callback(options.continueOnError ? null : error, file);
         }
@@ -273,7 +278,7 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
 
         var packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
-        util.log(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+        Logger.info(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         rimraf.sync(path.resolve(pathInfo.dir, "node_modules"));
         rimraf.sync(path.resolve(process.cwd(), "node_modules"));

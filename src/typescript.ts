@@ -12,7 +12,7 @@ import {ArgumentOptions,
         PackageDescriptor} from "./interfaces";
 
 import {TypeScriptCompileOptions} from "./options";
-import {pluginName} from "./plugin";
+import {pluginName, Logger} from "./plugin";
 
 const TSC_ARGS_FILENAME: string = "__args.tmp";
 const TSCONFIG_OVERRIDE_FILENAME: string = ".tsconfig.json";
@@ -44,12 +44,12 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
         let hasLocalTypings = fs.existsSync(localTypingsPath);
 
         if (!hasGlobalTypeScriptConfig) {
-            util.log(util.colors.yellow(`Cannot compile workspace package '${packageDescriptor.name}'. Could not find a workspace 'tsconfig.json' file.`));
+            Logger.warn(util.colors.yellow(`Cannot compile workspace package '${packageDescriptor.name}'. Could not find a workspace 'tsconfig.json' file.`));
 
             return callback(null, file);
         }
 
-        util.log(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+        Logger.info(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         // Generate an @args file for the compiler
         let globalTypeScriptConfig = hasGlobalTypeScriptConfig ? require(globalTypeScriptConfigPath).compilerOptions || { } : { };
@@ -69,6 +69,13 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
 
         let typingFilePaths: Array<string>
             = hasLocalTypings ? getTypingFileReferences(require(localTypingsPath)) : [ ];
+
+        Logger.verbose((logger) => {
+            logger(`TypeScript compiler options: ${JSON.stringify(compilerOptions)}`);
+
+            excludedFolders.forEach((exclFolder) => { logger(`Excluding folder '${util.colors.blue(exclFolder)}'`); });
+            typingFilePaths.forEach((typFile) => { logger(`Including typing '${util.colors.blue(typFile)}'`); });
+        });
 
         createTscArgsFile(pathInfo.dir, compilerOptions, excludedFolders, typingFilePaths, options.fastCompile, () => {
             shellExecuteTsc(pathInfo.dir, [ "@" + TSC_ARGS_FILENAME ]);
@@ -100,7 +107,7 @@ function shellExecuteTsc(packagePath: string, compilerArgs: Array<string> = [ ])
     let result = childProcess.spawnSync(path.join(hasLocalTypeScript ? "." : "..", "node_modules/.bin", process.platform === "win32" ? "tsc.cmd" : "tsc"), compilerArgs, { cwd: packagePath });
 
     if (result.status !== 0) {
-        util.log(util.colors.red(`Compilation failed:${os.EOL}${result.stdout.toString()}`));
+        Logger.error(util.colors.red(`Compilation failed:${os.EOL}${result.stdout.toString()}`));
     }
 }
 

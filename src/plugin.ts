@@ -1,3 +1,5 @@
+import * as util from "gulp-util";
+
 import {ArgumentOptions,
         PackageDescriptor} from "./interfaces";
 
@@ -14,3 +16,31 @@ export const argv: ArgumentOptions
     .alias("p", "package")
     .alias("v", "verbose")
     .argv;
+
+export interface LogTextFunc {
+    (logFunc: (message: string | Chalk.ChalkChain) => void): void;
+}
+
+export class Logger {
+    public static error(message: string | Chalk.ChalkChain): void {
+        util.log(message);
+    }
+
+    public static warn(message: string | Chalk.ChalkChain): void {
+        util.log(message);
+    }
+
+    public static info(message: string | Chalk.ChalkChain): void {
+        util.log(message);
+    }
+
+    public static verbose(message: string | Chalk.ChalkChain | LogTextFunc): void {
+        if (argv.verbose) {
+            if (typeof message === "function") {
+                return (<LogTextFunc>message)(util.log);
+            }
+
+            util.log(message);
+        }
+    }
+}
