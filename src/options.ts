@@ -78,9 +78,16 @@ export interface TypeScriptCompileOptions {
     continueOnError?: boolean;
 
     /**
-     * true to attempt compiling only .ts files that are newer than their .js counterparts.
+     * true to compile only those source files that are affected by change.
      *
      * Defaults to true.
      */
     fastCompile?: boolean;
+
+    /**
+     * true to process any found `typings.json` files that are included in the workspace package.
+     *
+     * Defaults to true.
+     */
+    includeTypings?: boolean;
 }

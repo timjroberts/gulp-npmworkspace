@@ -98,7 +98,23 @@ These functions provide utilities for working with packages built using TypeScri
 
 #### buildTypeScriptProject
 
-buildTypeScriptProject()
+buildTypeScriptProject(_options_?: Object)
+
+_options_: An optional hash of options:
+> _continueOnError_?: boolean  
+> `true` to continue streaming 'package.json' files if the compilation fails.
+
+> _fastCompile_?: boolean  
+> `true` to compile only those source files that are affected by change.
+
+> _includeTypings_?: boolean  
+> `true` to process any found `typings.json` files that are included in the workspace package.
 
 Accepts and returns a stream of 'package.json' files and executes the TypeScript compiler for each one.
-Compilation options should be provided in a 'tsconfig.json' file that sits alongside the 'pacakge.json' file.
+The workspace should contain a 'tsconfig.json' file that is applied across all workspace packages. If a
+workspace package needs to override TypeScript compiler options then a local '.tsconfig.json' (note the
+period at the beginning), can be used to specify any local settings that should be applied.
+
+During compilation:
+- The local TypeScript compiler options are combined with the workspace defined options
+- The local `excludes` are combined with the workspace defined `excludes`

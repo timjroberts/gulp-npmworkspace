@@ -15,6 +15,7 @@ import {TypeScriptCompileOptions} from "./options";
 import {pluginName} from "./plugin";
 
 const TSC_ARGS_FILENAME: string = "__args.tmp";
+const TSCONFIG_OVERRIDE_FILENAME: string = ".tsconfig.json";
 
 /**
  * Accepts and returns a stream of 'package.json' files and executes the TypeScript compiler for each one.
@@ -22,7 +23,7 @@ const TSC_ARGS_FILENAME: string = "__args.tmp";
  * @param options A hash of options.
  */
 export function buildTypeScriptProject(options?: TypeScriptCompileOptions): NodeJS.ReadWriteStream {
-    options = _.defaults(options || { }, { continueOnError: true, fastCompile: true });
+    options = _.defaults(options || { }, { continueOnError: true, fastCompile: true, includeTypings: true });
 
     return through.obj(function(file: File, encoding, callback) {
         if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams not supported."));
@@ -36,42 +37,62 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
         let globalTypeScriptConfigPath = path.join(process.cwd(), "tsconfig.json");
         let hasGlobalTypeScriptConfig = fs.existsSync(globalTypeScriptConfigPath);
 
-        let localTypeScriptConfigPath = path.join(pathInfo.dir, "tsconfig.json");
+        let localTypeScriptConfigPath = path.join(pathInfo.dir, TSCONFIG_OVERRIDE_FILENAME);
         let hasLocalTypeScriptConfig = fs.existsSync(localTypeScriptConfigPath);
 
-        if (!hasGlobalTypeScriptConfig && !hasLocalTypeScriptConfig) {
-            util.log(util.colors.yellow(`Cannot compile workspace package '${packageDescriptor.name}'. Could not find a local or global 'tsconfig.json' file.`));
+        let localTypingsPath = path.join(pathInfo.dir, "typings.json");
+        let hasLocalTypings = fs.existsSync(localTypingsPath);
+
+        if (!hasGlobalTypeScriptConfig) {
+            util.log(util.colors.yellow(`Cannot compile workspace package '${packageDescriptor.name}'. Could not find a workspace 'tsconfig.json' file.`));
 
             return callback(null, file);
         }
 
         util.log(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-        if (hasLocalTypeScriptConfig && !options.fastCompile) {
-            shellExecuteTsc(pathInfo.dir);
+        // Generate an @args file for the compiler
+        let globalTypeScriptConfig = hasGlobalTypeScriptConfig ? require(globalTypeScriptConfigPath).compilerOptions || { } : { };
+        let localTypeScriptConfig = hasLocalTypeScriptConfig ? require(localTypeScriptConfigPath).compilerOptions || { } : { };
+
+        let compilerOptions: Object = _.extend({ }, globalTypeScriptConfig, localTypeScriptConfig);
+
+        // Normalise the output options so that anything defined in the workspace package is given precendence
+        if (compilerOptions["outFile"] && compilerOptions["outDir"]) {
+            if (localTypeScriptConfig["outFile"]) delete compilerOptions["outDir"];
+            if (localTypeScriptConfig["outDir"]) delete compilerOptions["outFile"];
+        }
+
+        let excludedFolders: Array<string>
+            = _.union<string>(hasGlobalTypeScriptConfig ? require(globalTypeScriptConfigPath).exclude || [ ] : [ ],
+                                hasLocalTypeScriptConfig ? require(localTypeScriptConfigPath).exclude || [ ] : [ ]);
+
+        let typingFilePaths: Array<string>
+            = hasLocalTypings ? getTypingFileReferences(require(localTypingsPath)) : [ ];
+
+        createTscArgsFile(pathInfo.dir, compilerOptions, excludedFolders, typingFilePaths, options.fastCompile, () => {
+            shellExecuteTsc(pathInfo.dir, [ "@" + TSC_ARGS_FILENAME ]);
+            fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
 
             callback(null, file);
-        }
-        else {
-            // Generate an @args file for the compiler
-            let compilerOptions: Object
-                = _.extend({ },
-                           hasGlobalTypeScriptConfig ? require(globalTypeScriptConfigPath).compilerOptions || { } : { },
-                           hasLocalTypeScriptConfig ? require(localTypeScriptConfigPath).compilerOptions || { } : { });
-
-            let excludedFolders: Array<string>
-                = _.union<string>(hasGlobalTypeScriptConfig ? require(globalTypeScriptConfigPath).exclude || [ ] : [ ],
-                                  hasLocalTypeScriptConfig ? require(localTypeScriptConfigPath).exclude || [ ] : [ ]);
-
-            createTscArgsFile(pathInfo.dir, compilerOptions, excludedFolders, () => {
-                shellExecuteTsc(pathInfo.dir, [ "@" + TSC_ARGS_FILENAME ]);
-
-                fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
-
-                callback(null, file);
-            });
-        }
+        });
     });
+}
+
+function getTypingFileReferences(typingsDescriptor: Object): Array<string> {
+    let typingPaths: Array<string> = [ ];
+
+    for (let d in typingsDescriptor) {
+        for (let ds in typingsDescriptor[d]) {
+            let typingReference: string = typingsDescriptor[d][ds];
+
+            let result = /file:(.*)/g.exec(typingReference);
+
+            if (result) typingPaths.push(result[1]);
+        }
+    }
+
+    return typingPaths;
 }
 
 function shellExecuteTsc(packagePath: string, compilerArgs: Array<string> = [ ]): void {
@@ -83,10 +104,9 @@ function shellExecuteTsc(packagePath: string, compilerArgs: Array<string> = [ ])
     }
 }
 
-function createTscArgsFile(packagePath: string, compilerOptions: Object, excludedFolders: Array<string>, onCompleteFunc: Function): void {
-    let argsFilePath = path.join(packagePath, TSC_ARGS_FILENAME);
 
-    let fileStream = fs.createWriteStream(argsFilePath);
+function createTscArgsFile(packagePath: string, compilerOptions: Object, excludedFolders: Array<string>, relativeFilePaths: Array<string>, supportFastCompile: boolean, onCompleteFunc: Function): void {
+    let fileStream = fs.createWriteStream(path.join(packagePath, TSC_ARGS_FILENAME));
 
     fileStream.once("finish", () =>
     {
@@ -103,7 +123,7 @@ function createTscArgsFile(packagePath: string, compilerOptions: Object, exclude
     }
 
     glob.sync(`./*.ts`, { cwd: packagePath }).forEach((srcFile) => {
-        fileStream.write(`${os.EOL}\"${srcFile}\"`)
+        fileStream.write(`${os.EOL}\"${srcFile}\"`);
     });
 
     let packageFolders: Array<string> = _.filter(fs.readdirSync(packagePath), (p) => fs.statSync(path.join(packagePath, p)).isDirectory());
@@ -111,8 +131,12 @@ function createTscArgsFile(packagePath: string, compilerOptions: Object, exclude
 
     srcFolders.forEach((srcFolder) => {
         glob.sync(`./${srcFolder}/**/*.ts`, { cwd: packagePath }).forEach((srcFile) => {
-            fileStream.write(`${os.EOL}\"${srcFile}\"`)
+            fileStream.write(`${os.EOL}\"${srcFile}\"`);
         });
+    });
+
+    relativeFilePaths.forEach((file) => {
+        fileStream.write(`${os.EOL}\"${file}\"`)
     });
 
     fileStream.end();
