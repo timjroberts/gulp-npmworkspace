@@ -213,7 +213,7 @@ export function npmInstall(options?: NpmInstallOptions) {
                 }
 
                 lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
-                    .push(packageName + "@" + packageDescriptor.dependencies[packageName]);
+                    .push(`${packageName}@${packageDescriptor.dependencies[packageName]}`);
             }
 
             let devDependencies: Dictionary<string> = { };
@@ -234,7 +234,7 @@ export function npmInstall(options?: NpmInstallOptions) {
                 if (!options.minimizeSizeOnDisk) {
                     // Don't care about minimizing size on disk, so install it in the package
                     lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
-                        .push(`${packageName}@"${packageDescriptor.devDependencies[packageName]}"`);
+                        .push(`${packageName}@${packageDescriptor.devDependencies[packageName]}`);
 
                     continue;
                 }
@@ -244,7 +244,7 @@ export function npmInstall(options?: NpmInstallOptions) {
                 if (!fs.existsSync(workspacePackagePath)) {
                     // Doesn't exist in the workspace, so install it there
                     lookupRegistryDependencies(options.registryMap[packageName], workspaceDependencies)
-                        .push(`${packageName}@"${packageDescriptor.devDependencies[packageName]}"`);
+                        .push(`${packageName}@${packageDescriptor.devDependencies[packageName]}`);
                 }
                 else {
                     // Does exist in the workspace, so if the version there satisfies our version requirements do nothing
@@ -253,7 +253,7 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                     if (!semver.satisfies(workspacePackageVersion, packageDescriptor.devDependencies[packageName])) {
                         lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
-                            .push(`${packageName}@"${packageDescriptor.devDependencies[packageName]}"`);
+                            .push(`${packageName}@${packageDescriptor.devDependencies[packageName]}`);
 
                         Logger.warn(util.colors.yellow(`Package '${packageName}' cannot be satisfied by version ${workspacePackageVersion}. Installing locally.`));
                     }
@@ -267,7 +267,7 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                         if (!packages || packages.length === 0) continue;
 
-                        logger(`  ${util.colors.blue(registry)}`);
+                        logger(`  ${registry}`);
                         packages.forEach((p) => { logger(`    - ${p}`); });
                     }
                 };
@@ -300,10 +300,14 @@ export function npmInstall(options?: NpmInstallOptions) {
             callback(null, file);
         }
         catch (error) {
-            Logger.error(`Error installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+            let message = `Error installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
+
+            Logger.error(message);
             Logger.error(util.colors.red(error));
 
-            callback(options.continueOnError ? null : error, file);
+            callback(options.continueOnError ? null
+                                             : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
+                     file);
         }
     });
 }
@@ -318,7 +322,7 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
 
         var pathInfo = path.parse(file.path);
 
-        if (pathInfo.base !== "package.json") return callback(new util.PluginError("install", "Expected a 'package.json' file."));
+        if (pathInfo.base !== "package.json") return callback(new util.PluginError(pluginName, "Expected a 'package.json' file."));
 
         var packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
