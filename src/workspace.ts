@@ -88,6 +88,7 @@ export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
     return packagesStream.pipe(collector);
 }
 
+
 /**
  * Accepts and returns a stream of 'package.json' files and applies a filter function to each one in order to
  * determine if the file should be included in the returned stream or not.
@@ -106,6 +107,7 @@ export function filter(filterFunc: (packageDescriptor: PackageDescriptor) => boo
         callback();
     });
 }
+
 
 /**
  * Accepts and returns a stream of 'package.json' files and executes the given script for each one.
@@ -151,6 +153,7 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
     });
 }
 
+
 /**
  * Accepts and returns a stream of 'package.json' files and installs the dependant packages for each one.
  * Symbolic links are created for each dependency if it is present in the workspace.
@@ -158,9 +161,22 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
  * @param options A hash of options.
  */
 export function npmInstall(options?: NpmInstallOptions) {
-    options = _.defaults(options || { }, { continueOnError: true, minimizeSizeOnDisk: true });
+    options = _.defaults(options || { }, { continueOnError: true, minimizeSizeOnDisk: true, registryMap: { } });
 
     let packageMap: Dictionary<string> = { };
+
+    let lookupRegistryDependencies = function(registry: string, registryMap: Dictionary<Array<string>>): Array<string> {
+        if (!registry) return registryMap["*"];
+
+        let dependencies: Array<string> = registryMap[registry];
+
+        if (!dependencies) {
+            dependencies = [ ];
+            registryMap[registry] = dependencies;
+        }
+
+        return dependencies;
+    };
 
     return through.obj(function (file: File, encoding, callback) {
         if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
@@ -175,8 +191,8 @@ export function npmInstall(options?: NpmInstallOptions) {
 
         packageMap[packageDescriptor.name] = pathInfo.dir;
 
-        let workspaceDependencies: Array<string> = [];
-        let packageDependencies: Array<string> = [];
+        let workspaceDependencies: Dictionary<Array<string>> = { "*": [ ] };
+        let packageDependencies: Dictionary<Array<string>> = { "*": [ ] };
 
         let dependencyPath: string;
 
@@ -185,6 +201,10 @@ export function npmInstall(options?: NpmInstallOptions) {
                 dependencyPath = packageMap[packageName];
 
                 if (dependencyPath) {
+                    if (options.registryMap[packageName]) {
+                        Logger.warn(util.colors.yellow(`Workspace package '${packageName}' has an entry in options.registryMap. Ignoring.`));
+                    }
+
                     createPackageSymLink(pathInfo.dir, packageName, dependencyPath);
 
                     Logger.verbose(`Linked '${util.colors.cyan(packageName)}' (-> '${util.colors.blue(dependencyPath)}')`);
@@ -192,7 +212,8 @@ export function npmInstall(options?: NpmInstallOptions) {
                     continue;
                 }
 
-                packageDependencies.push(packageName + "@" + packageDescriptor.dependencies[packageName]);
+                lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
+                    .push(packageName + "@" + packageDescriptor.dependencies[packageName]);
             }
 
             let devDependencies: Dictionary<string> = { };
@@ -212,7 +233,8 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                 if (!options.minimizeSizeOnDisk) {
                     // Don't care about minimizing size on disk, so install it in the package
-                    packageDependencies.push(packageName + "@" + packageDescriptor.devDependencies[packageName]);
+                    lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
+                        .push(`${packageName}@"${packageDescriptor.devDependencies[packageName]}"`);
 
                     continue;
                 }
@@ -221,7 +243,8 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                 if (!fs.existsSync(workspacePackagePath)) {
                     // Doesn't exist in the workspace, so install it there
-                    workspaceDependencies.push(packageName + "@" + packageDescriptor.devDependencies[packageName]);
+                    lookupRegistryDependencies(options.registryMap[packageName], workspaceDependencies)
+                        .push(`${packageName}@"${packageDescriptor.devDependencies[packageName]}"`);
                 }
                 else {
                     // Does exist in the workspace, so if the version there satisfies our version requirements do nothing
@@ -229,12 +252,32 @@ export function npmInstall(options?: NpmInstallOptions) {
                     let workspacePackageVersion = require(path.join(workspacePackagePath, "package.json")).version;
 
                     if (!semver.satisfies(workspacePackageVersion, packageDescriptor.devDependencies[packageName])) {
-                        packageDependencies.push(packageName + "@" + packageDescriptor.devDependencies[packageName]);
+                        lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
+                            .push(`${packageName}@"${packageDescriptor.devDependencies[packageName]}"`);
 
                         Logger.warn(util.colors.yellow(`Package '${packageName}' cannot be satisfied by version ${workspacePackageVersion}. Installing locally.`));
                     }
                 }
             }
+
+            Logger.verbose((logger) => {
+                let log = function(registryPackages: Dictionary<Array<string>>) {
+                    for (let registry in registryPackages) {
+                        let packages = registryPackages[registry];
+
+                        if (!packages || packages.length === 0) continue;
+
+                        logger(`  ${util.colors.blue(registry)}`);
+                        packages.forEach((p) => { logger(`    - ${p}`); });
+                    }
+                };
+
+                logger("Installing [into workspace package]:");
+                log(packageDependencies);
+
+                logger("Installing [into workspace]:");
+                log(workspaceDependencies);
+            });
 
             shellExecuteNpmInstall(pathInfo.dir, packageDependencies);
             shellExecuteNpmInstall(process.cwd(), workspaceDependencies);
@@ -265,6 +308,7 @@ export function npmInstall(options?: NpmInstallOptions) {
     });
 }
 
+
 /**
  * Accepts and returns a stream of 'package.json' files and uninstalls all dependant packages for each one.
  */
@@ -287,6 +331,7 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
     });
 }
 
+
 function createPackageSymLink(sourcePath: string, packageName: string, targetPath: string): void {
     sourcePath = path.resolve(sourcePath, "node_modules");
 
@@ -297,18 +342,33 @@ function createPackageSymLink(sourcePath: string, packageName: string, targetPat
 }
 
 
-function shellExecuteNpmInstall(packagePath: string, packages: Array<string>): void {
-    var installArgs = ["install"].concat(packages || []);
+function shellExecuteNpmInstall(packagePath: string, registryPackages: Dictionary<Array<string>>): void {
+    for (let registry in registryPackages) {
+        let packages = registryPackages[registry];
 
-    if (packagePath === process.cwd()) {
-        installArgs.push("--ignore-scripts");
+        if (!packages || packages.length === 0) continue;
+
+        var installArgs = ["install"].concat(packages);
+
+        if (packagePath === process.cwd()) {
+            installArgs.push("--ignore-scripts");
+        }
+
+        installArgs.push("--production");
+
+        if (registry !== "*") {
+            installArgs.push("--registry");
+            installArgs.push(registry);
+        }
+
+        Logger.verbose((logger) => {
+            logger(`npm ${installArgs.join(" ")}`);
+        });
+
+        var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", installArgs, { cwd: packagePath });
+
+        if (result.status !== 0) throw new Error(result.stderr.toString());
     }
-
-    installArgs.push("--production");
-
-    var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", installArgs, { cwd: packagePath });
-
-    if (result.status !== 0) throw new Error(result.stderr.toString());
 }
 
 

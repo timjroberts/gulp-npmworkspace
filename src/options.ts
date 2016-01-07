@@ -1,4 +1,5 @@
-import {PackageDescriptor} from "./interfaces";
+import {PackageDescriptor,
+        Dictionary} from "./interfaces";
 
 /**
  * Options for npmScript().
@@ -59,6 +60,11 @@ export interface NpmInstallOptions {
      * Defaults to true.
      */
     minimizeSizeOnDisk?: boolean;
+
+    /**
+     * A map between a package name and the npm registry where it should be installed from.
+     */
+    registryMap?: Dictionary<string>;
 
     /**
      * A combination of a condition and an action that will be executed once the package has been installed.
