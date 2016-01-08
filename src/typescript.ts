@@ -78,10 +78,21 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
         });
 
         createTscArgsFile(pathInfo.dir, compilerOptions, excludedFolders, typingFilePaths, options.fastCompile, () => {
-            shellExecuteTsc(pathInfo.dir, [ "@" + TSC_ARGS_FILENAME ]);
-            fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
+            try {
+                shellExecuteTsc(pathInfo.dir, [ "@" + TSC_ARGS_FILENAME ]);
+                fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
 
-            callback(null, file);
+                callback(null, file);
+            }
+            catch (error) {
+                let message = `Compilation failed for workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
+
+                Logger.error(message + os.EOL + util.colors.red(error.message));
+
+                callback(options.continueOnError ? null
+                                                 : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
+                        file);
+            }
         });
     });
 }
@@ -106,9 +117,9 @@ function shellExecuteTsc(packagePath: string, compilerArgs: Array<string> = [ ])
     let hasLocalTypeScript = fs.existsSync(path.join(packagePath, "node_modules", "typescript"));
     let result = childProcess.spawnSync(path.join(hasLocalTypeScript ? "." : "..", "node_modules/.bin", process.platform === "win32" ? "tsc.cmd" : "tsc"), compilerArgs, { cwd: packagePath });
 
-    if (result.status !== 0) {
-        Logger.error(util.colors.red(`Compilation failed:${os.EOL}${result.stdout.toString()}`));
-    }
+    if (result.error) throw new Error("Could not locate a TypeScript compiler.");
+
+    if (result.status !== 0) throw new Error(result.stdout.toString());
 }
 
 

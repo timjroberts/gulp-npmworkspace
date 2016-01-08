@@ -1,5 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
+import * as os from "os";
 import * as childProcess from "child_process";
 import * as gulp from "gulp";
 import * as util from "gulp-util";
@@ -178,6 +179,19 @@ export function npmInstall(options?: NpmInstallOptions) {
         return dependencies;
     };
 
+    let toSemverRange = function(version: string): string {
+        let matches = /^(\^|~)?(?:(\d+)\.?)(?:(\d+)\.?)?(?:(\d+)\.?)?/g.exec(version);
+
+        if (!matches) return `"${version}"`;
+
+        if (matches[1] === "^") {
+            return `^${matches[2]}.x.x`;
+        }
+        else {
+            return `^${matches[2]}.${matches[3] ? matches[3] : "x"}.x`;
+        }
+    }
+
     return through.obj(function (file: File, encoding, callback) {
         if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
 
@@ -213,7 +227,7 @@ export function npmInstall(options?: NpmInstallOptions) {
                 }
 
                 lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
-                    .push(`${packageName}@${packageDescriptor.dependencies[packageName]}`);
+                    .push(`${packageName}@${toSemverRange(packageDescriptor.dependencies[packageName])}`);
             }
 
             let devDependencies: Dictionary<string> = { };
@@ -234,7 +248,7 @@ export function npmInstall(options?: NpmInstallOptions) {
                 if (!options.minimizeSizeOnDisk) {
                     // Don't care about minimizing size on disk, so install it in the package
                     lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
-                        .push(`${packageName}@${packageDescriptor.devDependencies[packageName]}`);
+                        .push(`${packageName}@${toSemverRange(packageDescriptor.devDependencies[packageName])}`);
 
                     continue;
                 }
@@ -244,7 +258,7 @@ export function npmInstall(options?: NpmInstallOptions) {
                 if (!fs.existsSync(workspacePackagePath)) {
                     // Doesn't exist in the workspace, so install it there
                     lookupRegistryDependencies(options.registryMap[packageName], workspaceDependencies)
-                        .push(`${packageName}@${packageDescriptor.devDependencies[packageName]}`);
+                        .push(`${packageName}@${toSemverRange(packageDescriptor.devDependencies[packageName])}`);
                 }
                 else {
                     // Does exist in the workspace, so if the version there satisfies our version requirements do nothing
@@ -253,7 +267,7 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                     if (!semver.satisfies(workspacePackageVersion, packageDescriptor.devDependencies[packageName])) {
                         lookupRegistryDependencies(options.registryMap[packageName], packageDependencies)
-                            .push(`${packageName}@${packageDescriptor.devDependencies[packageName]}`);
+                            .push(`${packageName}@${toSemverRange(packageDescriptor.devDependencies[packageName])}`);
 
                         Logger.warn(util.colors.yellow(`Package '${packageName}' cannot be satisfied by version ${workspacePackageVersion}. Installing locally.`));
                     }
@@ -261,22 +275,20 @@ export function npmInstall(options?: NpmInstallOptions) {
             }
 
             Logger.verbose((logger) => {
-                let log = function(registryPackages: Dictionary<Array<string>>) {
+                let log = function(level: string, registryPackages: Dictionary<Array<string>>) {
                     for (let registry in registryPackages) {
                         let packages = registryPackages[registry];
 
                         if (!packages || packages.length === 0) continue;
 
                         logger(`  ${registry}`);
-                        packages.forEach((p) => { logger(`    - ${p}`); });
+                        packages.forEach((p) => { logger(`    - ${p} (${level})`); });
                     }
                 };
 
-                logger("Installing [into workspace package]:");
-                log(packageDependencies);
-
-                logger("Installing [into workspace]:");
-                log(workspaceDependencies);
+                logger(`options.minimizeSizeOnDisk = ${options.minimizeSizeOnDisk}`)
+                log("workspace package", packageDependencies);
+                log("workspace", workspaceDependencies);
             });
 
             shellExecuteNpmInstall(pathInfo.dir, packageDependencies);
@@ -302,8 +314,7 @@ export function npmInstall(options?: NpmInstallOptions) {
         catch (error) {
             let message = `Error installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
 
-            Logger.error(message);
-            Logger.error(util.colors.red(error));
+            Logger.error(message + os.EOL + error.message);
 
             callback(options.continueOnError ? null
                                              : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
