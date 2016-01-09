@@ -141,7 +141,7 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
         try {
             let result = shellExecute(pathInfo.dir, packageDescriptor.scripts[scriptName]);
 
-            Logger.verbose(result);
+            Logger.info(result);
 
             callback(null, file);
         }

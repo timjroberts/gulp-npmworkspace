@@ -80,7 +80,6 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
         createTscArgsFile(pathInfo.dir, compilerOptions, excludedFolders, typingFilePaths, options.fastCompile, () => {
             try {
                 shellExecuteTsc(pathInfo.dir, [ "@" + TSC_ARGS_FILENAME ]);
-                fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
 
                 callback(null, file);
             }
@@ -92,6 +91,9 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
                 callback(options.continueOnError ? null
                                                  : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
                         file);
+            }
+            finally {
+                fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
             }
         });
     });
