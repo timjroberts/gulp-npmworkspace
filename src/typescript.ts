@@ -9,13 +9,15 @@ import * as glob from "glob";
 import File = require("vinyl");
 
 import {ArgumentOptions,
-        PackageDescriptor} from "./interfaces";
+        PackageDescriptor,
+        PreCompileAction} from "./interfaces";
 
 import {TypeScriptCompileOptions} from "./options";
 import {pluginName, Logger} from "./plugin";
 
 const TSC_ARGS_FILENAME: string = "__args.tmp";
-const TSCONFIG_OVERRIDE_FILENAME: string = ".tsconfig.json";
+const TSCONFIG_FILENAME: string = "tsconfig.json";
+
 
 /**
  * Accepts and returns a stream of 'package.json' files and executes the TypeScript compiler for each one.
@@ -34,52 +36,38 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
 
         let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
-        let globalTypeScriptConfigPath = path.join(process.cwd(), "tsconfig.json");
-        let hasGlobalTypeScriptConfig = fs.existsSync(globalTypeScriptConfigPath);
-
-        let localTypeScriptConfigPath = path.join(pathInfo.dir, TSCONFIG_OVERRIDE_FILENAME);
+        let localTypeScriptConfigPath = path.join(pathInfo.dir, TSCONFIG_FILENAME);
         let hasLocalTypeScriptConfig = fs.existsSync(localTypeScriptConfigPath);
 
-        let localTypingsPath = path.join(pathInfo.dir, "typings.json");
-        let hasLocalTypings = fs.existsSync(localTypingsPath);
-
-        if (!hasGlobalTypeScriptConfig) {
-            Logger.warn(util.colors.yellow(`Cannot compile workspace package '${packageDescriptor.name}'. Could not find a workspace 'tsconfig.json' file.`));
+        if (!hasLocalTypeScriptConfig) {
+            Logger.warn(util.colors.yellow(`Cannot compile workspace package '${packageDescriptor.name}'. Could not find a 'tsconfig.json' file.`));
 
             return callback(null, file);
         }
 
         Logger.info(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-        // Generate an @args file for the compiler
-        let globalTypeScriptConfig = hasGlobalTypeScriptConfig ? require(globalTypeScriptConfigPath).compilerOptions || { } : { };
-        let localTypeScriptConfig = hasLocalTypeScriptConfig ? require(localTypeScriptConfigPath).compilerOptions || { } : { };
+        let localTypeScriptConfig = require(localTypeScriptConfigPath);
 
-        let compilerOptions: Object = _.extend({ }, globalTypeScriptConfig, localTypeScriptConfig);
-
-        // Normalise the output options so that anything defined in the workspace package is given precendence
-        if (compilerOptions["outFile"] && compilerOptions["outDir"]) {
-            if (localTypeScriptConfig["outFile"]) delete compilerOptions["outDir"];
-            if (localTypeScriptConfig["outDir"]) delete compilerOptions["outFile"];
-        }
-
-        let excludedFolders: Array<string>
-            = _.union<string>(hasGlobalTypeScriptConfig ? require(globalTypeScriptConfigPath).exclude || [ ] : [ ],
-                                hasLocalTypeScriptConfig ? require(localTypeScriptConfigPath).exclude || [ ] : [ ]);
-
-        let typingFilePaths: Array<string>
-            = hasLocalTypings ? getTypingFileReferences(require(localTypingsPath)) : [ ];
+        let compilerOptions = localTypeScriptConfig.compilerOptions || { };
+        let excludedFolders: Array<string> = localTypeScriptConfig.exclude || [ ];
 
         Logger.verbose((logger) => {
             logger(`TypeScript compiler options: ${JSON.stringify(compilerOptions)}`);
 
             excludedFolders.forEach((exclFolder) => { logger(`Excluding folder '${util.colors.blue(exclFolder)}'`); });
-            typingFilePaths.forEach((typFile) => { logger(`Including typing '${util.colors.blue(typFile)}'`); });
         });
 
-        createTscArgsFile(pathInfo.dir, compilerOptions, excludedFolders, typingFilePaths, options.fastCompile, () => {
+        // Call the TypeScript compiler (taking into account the options.fastCompile setting)
+
+        let preCompileAction: PreCompileAction
+            = options.fastCompile ? createTscArgsFile : nullPreCompileAction;
+        let tscCmdLineArgs
+            = options.fastCompile ? [ "@" + TSC_ARGS_FILENAME ] : [ ];
+
+        preCompileAction(pathInfo.dir, compilerOptions, excludedFolders, () => {
             try {
-                shellExecuteTsc(pathInfo.dir, [ "@" + TSC_ARGS_FILENAME ]);
+                shellExecuteTsc(pathInfo.dir, tscCmdLineArgs);
 
                 callback(null, file);
             }
@@ -89,32 +77,24 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
                 Logger.error(message + os.EOL + util.colors.red(error.message));
 
                 callback(options.continueOnError ? null
-                                                 : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
+                                                : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
                         file);
             }
             finally {
-                fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
+                if (options.fastCompile) fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
             }
         });
     });
 }
 
-function getTypingFileReferences(typingsDescriptor: Object): Array<string> {
-    let typingPaths: Array<string> = [ ];
 
-    for (let d in typingsDescriptor) {
-        for (let ds in typingsDescriptor[d]) {
-            let typingReference: string = typingsDescriptor[d][ds];
-
-            let result = /file:(.*)/g.exec(typingReference);
-
-            if (result) typingPaths.push(result[1]);
-        }
-    }
-
-    return typingPaths;
-}
-
+/**
+ * Shells out to the TypeScript compiler. If a compiler is installed in the workspace pacakge then that
+ * version is used over the version that is installed in the workspace.
+ *
+ * @param packagePath The path to the root of the package.
+ * @param compilerArgs An array of arguments to pass to the compiler.
+ */
 function shellExecuteTsc(packagePath: string, compilerArgs: Array<string> = [ ]): void {
     let hasLocalTypeScript = fs.existsSync(path.join(packagePath, "node_modules", "typescript"));
     let result = childProcess.spawnSync(path.join(hasLocalTypeScript ? "." : "..", "node_modules/.bin", process.platform === "win32" ? "tsc.cmd" : "tsc"), compilerArgs, { cwd: packagePath });
@@ -125,7 +105,23 @@ function shellExecuteTsc(packagePath: string, compilerArgs: Array<string> = [ ])
 }
 
 
-function createTscArgsFile(packagePath: string, compilerOptions: Object, excludedFolders: Array<string>, relativeFilePaths: Array<string>, supportFastCompile: boolean, onCompleteFunc: Function): void {
+/**
+ * A PreCompileAction that performs no action (simply calls onCompleteFunc()).
+ */
+function nullPreCompileAction(packagePath: string, compilerOptions: Object, excludedFolders: Array<string>, onCompleteFunc: Function): void {
+    onCompleteFunc();
+}
+
+
+/**
+ * A PreCompileAction implementation that generates a TypeScript 'args' file.
+ *
+ * @param packagePath The path to the root of the package.
+ * @param compilerOptions A hash of the TypeScript compiler options.
+ * @excludedFolders An array of folders that should be excluded from compilation.
+ * @onCompleteFunc The callback to invoke when the pre-compilation action is complete.
+ */
+function createTscArgsFile(packagePath: string, compilerOptions: Object, excludedFolders: Array<string>, onCompleteFunc: Function): void {
     let fileStream = fs.createWriteStream(path.join(packagePath, TSC_ARGS_FILENAME));
 
     fileStream.once("finish", () =>
@@ -153,10 +149,6 @@ function createTscArgsFile(packagePath: string, compilerOptions: Object, exclude
         glob.sync(`./${srcFolder}/**/*.ts`, { cwd: packagePath }).forEach((srcFile) => {
             fileStream.write(`${os.EOL}\"${srcFile}\"`);
         });
-    });
-
-    relativeFilePaths.forEach((file) => {
-        fileStream.write(`${os.EOL}\"${file}\"`)
     });
 
     fileStream.end();

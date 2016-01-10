@@ -286,13 +286,36 @@ export function npmInstall(options?: NpmInstallOptions) {
                     }
                 };
 
-                logger(`options.minimizeSizeOnDisk = ${options.minimizeSizeOnDisk}`)
                 log("workspace package", packageDependencies);
                 log("workspace", workspaceDependencies);
             });
 
             shellExecuteNpmInstall(pathInfo.dir, packageDependencies);
             shellExecuteNpmInstall(process.cwd(), workspaceDependencies);
+
+            // Create links to any typings
+            let packageTypingsFilePath = path.join(pathInfo.dir, "typings.json");
+
+            if (fs.existsSync(packageTypingsFilePath)) {
+                let packageTypingsPath = path.join(pathInfo.dir, "typings");
+
+                if (!fs.existsSync(packageTypingsPath)) fs.mkdirSync(packageTypingsPath);
+
+                rimraf.sync(packageTypingsPath + "/**/*");
+
+                let typingFilePaths = getTypingFileReferences(require(packageTypingsFilePath));
+
+                for (let typingFilePathEntry in typingFilePaths) {
+                    let typingFilePath = path.resolve(pathInfo.dir, typingFilePaths[typingFilePathEntry]);
+                    let targetTypingFilePath = path.join(packageTypingsPath, typingFilePathEntry);
+
+                    fs.mkdirSync(targetTypingFilePath);
+
+                    fs.symlinkSync(typingFilePath, path.join(targetTypingFilePath, `${typingFilePathEntry}.d.ts`));
+
+                    Logger.verbose(`Linked typing '${util.colors.cyan(typingFilePathEntry)}' (-> '${util.colors.blue(typingFilePath)}')`);
+                }
+            }
 
             if (options.postInstall) {
                 let runPostInstall = true;
@@ -347,6 +370,23 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
 }
 
 
+function getTypingFileReferences(typingsDescriptor: Object): Dictionary<string> {
+    let typingPaths: Dictionary<string> = { };
+
+    for (let d in typingsDescriptor) {
+        for (let ds in typingsDescriptor[d]) {
+            let typingReference: string = typingsDescriptor[d][ds];
+
+            let result = /file:(.*)/g.exec(typingReference);
+
+            if (result) typingPaths[ds] = result[1];
+        }
+    }
+
+    return typingPaths;
+}
+
+
 function createPackageSymLink(sourcePath: string, packageName: string, targetPath: string): void {
     sourcePath = path.resolve(sourcePath, "node_modules");
 
@@ -376,13 +416,15 @@ function shellExecuteNpmInstall(packagePath: string, registryPackages: Dictionar
             installArgs.push(registry);
         }
 
-        Logger.verbose((logger) => {
-            logger(`npm ${installArgs.join(" ")}`);
-        });
-
         var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", installArgs, { cwd: packagePath });
 
-        if (result.status !== 0) throw new Error(result.stderr.toString());
+        if (result.status !== 0) {
+            Logger.verbose((logger) => {
+                logger(`npm ${installArgs.join(" ")}`);
+            });
+
+            throw new Error(result.stderr.toString());
+        }
     }
 }
 
