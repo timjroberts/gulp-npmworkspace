@@ -182,13 +182,13 @@ export function npmInstall(options?: NpmInstallOptions) {
     let toSemverRange = function(version: string): string {
         let matches = /^(\^|~)?(?:(\d+)\.?)(?:(\d+)\.?)?(?:(\d+)\.?)?/g.exec(version);
 
-        if (!matches) return `"${version}"`;
+        if (!matches || !matches[1]) return version;
 
         if (matches[1] === "^") {
             return `^${matches[2]}.x.x`;
         }
         else {
-            return `^${matches[2]}.${matches[3] ? matches[3] : "x"}.x`;
+            return `~${matches[2]}.${matches[3] ? matches[3] : "x"}.x`;
         }
     }
 
