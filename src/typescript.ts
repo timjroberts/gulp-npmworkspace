@@ -13,7 +13,10 @@ import {ArgumentOptions,
         PreCompileAction} from "./interfaces";
 
 import {TypeScriptCompileOptions} from "./options";
-import {pluginName, Logger} from "./plugin";
+
+import {pluginName,
+        Logger,
+        argvExclusiveProjectName} from "./plugin";
 
 const TSC_ARGS_FILENAME: string = "__args.tmp";
 const TSCONFIG_FILENAME: string = "tsconfig.json";
@@ -27,6 +30,8 @@ const TSCONFIG_FILENAME: string = "tsconfig.json";
 export function buildTypeScriptProject(options?: TypeScriptCompileOptions): NodeJS.ReadWriteStream {
     options = _.defaults(options || { }, { continueOnError: true, fastCompile: true, includeTypings: true });
 
+    let requiredPackageName = argvExclusiveProjectName();
+
     return through.obj(function(file: File, encoding, callback) {
         if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams not supported."));
 
@@ -35,6 +40,10 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
         if (pathInfo.base !== "package.json") return callback(new util.PluginError(pluginName, "Expected a 'package.json' file."));
 
         let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
+
+        if (requiredPackageName && packageDescriptor.name !== requiredPackageName) {
+            return callback(null, file);
+        }
 
         let localTypeScriptConfigPath = path.join(pathInfo.dir, TSCONFIG_FILENAME);
         let hasLocalTypeScriptConfig = fs.existsSync(localTypeScriptConfigPath);

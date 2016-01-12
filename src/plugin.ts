@@ -17,6 +17,22 @@ export const argv: ArgumentOptions
     .alias("v", "verbose")
     .argv;
 
+export function argvProjectName(): string {
+    if (!argv.package) return undefined;
+
+    let matches = /^(\!?)(.+)/g.exec(argv.package);
+
+    return (!matches || !matches[2]) ? undefined : matches[2];
+}
+
+export function argvExclusiveProjectName(): string {
+    if (!argv.package) return undefined;
+
+    let matches = /^\!(.+)/g.exec(argv.package);
+
+    return (!matches) ? undefined : matches[1];
+}
+
 export interface LogTextFunc {
     (logFunc: (message: string | Chalk.ChalkChain) => void): void;
 }

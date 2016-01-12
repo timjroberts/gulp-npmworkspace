@@ -22,7 +22,8 @@ import {NpmInstallOptions,
 
 import {pluginName,
         Logger,
-        argv} from "./plugin";
+        argv,
+        argvProjectName, argvExclusiveProjectName} from "./plugin";
 
 /**
  * Returns a stream of 'package.json' files that have been found in the workspace. The files
@@ -32,6 +33,8 @@ import {pluginName,
  */
 export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
     options = _.defaults(options || { }, { });
+
+    let requiredPackageName = argvProjectName();
 
     let packagesStream = gulp.src(["./*/package.json", "!./package.json"], options);
     let packageGraph = new DepGraph();
@@ -67,18 +70,19 @@ export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
             collector.push(packageFile);
         };
 
-        if (argv.package) {
+
+        if (requiredPackageName) {
             // Only return packages that are dependencies of (and including) the given
             // starting package
 
-            if (!packageMap[argv.package]) {
-                Logger.error(util.colors.red(`Package '${util.colors.cyan(argv.package)}' could not be found in the workspace.`));
+            if (!packageMap[requiredPackageName]) {
+                Logger.error(util.colors.red(`Package '${util.colors.cyan(requiredPackageName)}' could not be found in the workspace.`));
 
                 return;
             }
 
-            packageGraph.dependenciesOf(argv.package).forEach(collectorFunc, this);
-            collectorFunc.call(this, argv.package);
+            packageGraph.dependenciesOf(requiredPackageName).forEach(collectorFunc, this);
+            collectorFunc.call(this, requiredPackageName);
         }
         else {
             // Return all packages
@@ -119,6 +123,8 @@ export function filter(filterFunc: (packageDescriptor: PackageDescriptor) => boo
 export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJS.ReadWriteStream {
     options = _.defaults(options || { }, { ignoreMissingScript: true, continueOnError: true });
 
+    let requiredPackageName = argvExclusiveProjectName();
+
     return through.obj(function (file: File, encoding, callback) {
         if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams not supported."));
 
@@ -127,6 +133,10 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
         if (pathInfo.base !== "package.json") return callback(new util.PluginError(pluginName, "Expected a 'package.json' file."));
 
         let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
+
+        if (requiredPackageName && packageDescriptor.name !== requiredPackageName) {
+            return callback(null, file);
+        }
 
         Logger.info(`Running script '${scriptName}' for workspace package '${util.colors.cyan(packageDescriptor.name)}`);
 
@@ -163,6 +173,8 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
  */
 export function npmInstall(options?: NpmInstallOptions) {
     options = _.defaults(options || { }, { continueOnError: true, minimizeSizeOnDisk: true, registryMap: { } });
+
+    let requiredPackageName = argvExclusiveProjectName();
 
     let packageMap: Dictionary<string> = { };
 
@@ -201,9 +213,13 @@ export function npmInstall(options?: NpmInstallOptions) {
 
         let packageDescriptor = JSON.parse(file.contents.toString());
 
-        Logger.info(`Installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
-
         packageMap[packageDescriptor.name] = pathInfo.dir;
+
+        if (requiredPackageName && packageDescriptor.name !== requiredPackageName) {
+            return callback(null, file);
+        }
+
+        Logger.info(`Installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         let workspaceDependencies: Dictionary<Array<string>> = { "*": [ ] };
         let packageDependencies: Dictionary<Array<string>> = { "*": [ ] };
@@ -351,6 +367,8 @@ export function npmInstall(options?: NpmInstallOptions) {
  * Accepts and returns a stream of 'package.json' files and uninstalls all dependant packages for each one.
  */
 export function npmUninstall(): NodeJS.ReadWriteStream {
+    let requiredPackageName = argvExclusiveProjectName();
+
     return through.obj(function (file: File, encoding, callback) {
         if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
 
@@ -360,10 +378,14 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
 
         var packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
+        if (requiredPackageName && packageDescriptor.name !== requiredPackageName) {
+            return callback(null, file);
+        }
+
         Logger.info(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         rimraf.sync(path.resolve(pathInfo.dir, "node_modules"));
-        rimraf.sync(path.resolve(process.cwd(), "node_modules"));
+        rimraf.sync(path.resolve(pathInfo.dir, "typings"));
 
         callback(null, file);
     });
