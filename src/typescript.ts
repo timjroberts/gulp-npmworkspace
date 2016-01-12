@@ -78,6 +78,19 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
             try {
                 shellExecuteTsc(pathInfo.dir, tscCmdLineArgs);
 
+                let buildFilePath = path.join(pathInfo.dir, "gulpfile-build.js");
+
+                if (fs.existsSync(buildFilePath)) {
+                    let buildFile = require(buildFilePath);
+
+                    if (buildFile["postTypeScriptCompile"] && typeof buildFile["postTypeScriptCompile"] === "function") {
+
+                        Logger.info(`Running post-compile action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
+                        buildFile["postTypeScriptCompile"](pathInfo.dir, packageDescriptor);
+                    }
+                }
+
                 callback(null, file);
             }
             catch (error) {
