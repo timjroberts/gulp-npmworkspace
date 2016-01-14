@@ -66,41 +66,57 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
 
         Logger.info(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-        let count = typeScriptConfigs.length;
-        let receivedError: util.PluginError;
+        let typeScriptConfigsRemaining = typeScriptConfigs.length;
+        let typeScriptArgsFileNames: Array<string> = [ ];
 
-        let done = function(error: util.PluginError = null) {
-            if (error) {
-                receivedError = error;
-            }
+        let onTypeScriptArgumentFileCreated = function(typeScriptArgsFileName: string) {
+            typeScriptArgsFileNames.push(typeScriptArgsFileName);
 
-            if (--count === 0) {
-                if (receivedError) {
-                    return callback(receivedError, file);
+            if (--typeScriptConfigsRemaining === 0) {
+                try {
+                    for (let idx = 0; idx < typeScriptArgsFileNames.length; idx++) {
+                        let argsFileName = typeScriptArgsFileNames[idx];
+
+                        try {
+                            shellExecuteTsc(pathInfo.dir, [ `@${argsFileName}` ]);
+                        }
+                        catch (error) {
+                            let message = `Compilation failed for workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
+
+                            Logger.error(message + os.EOL + util.colors.red(error.message));
+
+                            return callback(options.continueOnError ? null
+                                                            : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
+                                            file);
+                        }
+                    }
+
+                    let postCompileAction = file["getWorkspace"]()["postTypeScriptCompile"];
+
+                    if (postCompileAction && typeof postCompileAction === "function") {
+                        Logger.info(`Running post-compile action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
+                        postCompileAction(pathInfo.dir, packageDescriptor);
+                    }
+
+                    callback(null, file);
                 }
-
-                let postCompileAction = file["getWorkspace"]()["postTypeScriptCompile"];
-
-                if (postCompileAction && typeof postCompileAction === "function") {
-                    Logger.info(`Running post-compile action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
-
-                    postCompileAction(pathInfo.dir, packageDescriptor);
+                finally {
+                    typeScriptArgsFileNames.forEach((argsFileName) => { fs.unlinkSync(path.join(pathInfo.dir, argsFileName)); });
                 }
-
-                callback(null, file);
             }
-        }
+        };
 
-        typeScriptConfigs.forEach((localTypeScriptConfig, idx) => {
+        typeScriptConfigs.forEach((typeScriptConfig, idx) => {
             let argsFileName = `_${idx.toString()}_${TSC_ARGS_FILENAME}`;
 
-            let compilerOptions = localTypeScriptConfig["compilerOptions"] || { };
+            let compilerOptions = typeScriptConfig["compilerOptions"] || { };
             let fileMode
-                = localTypeScriptConfig["files"] ? FileMode.Inclusion
-                                                 : FileMode.Exclusion;
+                = typeScriptConfig["files"] ? FileMode.Inclusion
+                                            : FileMode.Exclusion;
             let filesOrFolders
-                = fileMode === FileMode.Inclusion ? localTypeScriptConfig["files"] || [ ]
-                                                  : localTypeScriptConfig["exclude"] || [ ];
+                = fileMode === FileMode.Inclusion ? typeScriptConfig["files"] || [ ]
+                                                  : typeScriptConfig["exclude"] || [ ];
 
             Logger.verbose((logger) => {
                 logger(`Compiler options: ${JSON.stringify(compilerOptions)}`);
@@ -110,25 +126,7 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
                 }
             });
 
-            // Call the TypeScript compiler (taking into account the options.fastCompile setting)
-            createTscArgsFile(pathInfo.dir, argsFileName, compilerOptions, fileMode, filesOrFolders, () => {
-                try {
-                    shellExecuteTsc(pathInfo.dir, [ "@" + argsFileName ]);
-
-                    done();
-                }
-                catch (error) {
-                    let message = `Compilation failed for workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
-
-                    Logger.error(message + os.EOL + util.colors.red(error.message));
-
-                    done(options.continueOnError ? null
-                                                 : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}));
-                }
-                finally {
-                    fs.unlinkSync(path.join(pathInfo.dir, argsFileName));
-                }
-            });
+            createTscArgsFile(pathInfo.dir, argsFileName, compilerOptions, fileMode, filesOrFolders, () => { onTypeScriptArgumentFileCreated(argsFileName); });
         });
     });
 }
@@ -173,7 +171,9 @@ function createTscArgsFile(packagePath: string, argsFileName: string, compilerOp
             fileStream.write(`--${compilerOption} ${compilerOptions[compilerOption]} `);
         }
         else {
-            fileStream.write(`--${compilerOption} `);
+            if ((<boolean>compilerOptions[compilerOption])) {
+                fileStream.write(`--${compilerOption} `);
+            }
         }
     }
 

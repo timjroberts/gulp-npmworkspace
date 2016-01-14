@@ -109,11 +109,11 @@ export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
  * @param filterFunc A function that accepts a package descriptor and returns a boolean where false removes
  * the file from the stream.
  */
-export function filter(filterFunc: (packageDescriptor: PackageDescriptor) => boolean): NodeJS.ReadWriteStream {
+export function filter(filterFunc: (packageDescriptor: PackageDescriptor, path: string) => boolean): NodeJS.ReadWriteStream {
     return through.obj(function(file: File, encoding, callback) {
         var packageDescriptor = JSON.parse(file.contents.toString());
 
-        if (filterFunc(packageDescriptor)) {
+        if (filterFunc(packageDescriptor, path.parse(file.path).dir)) {
             return callback(null, file);
         }
 
