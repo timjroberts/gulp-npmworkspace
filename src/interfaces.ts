@@ -25,18 +25,3 @@ export interface PackageDescriptor {
 export interface GulpReadWriteStream extends NodeJS.ReadWriteStream {
     push(file: File): void;
 }
-
-/**
- * An action that can be executed before the TypeScript compiler is executed.
- */
-export interface PreCompileAction {
-    /**
-     * Executes the pre-compilation action.
-     *
-     * @param packagePath The path to the root of the package.
-     * @param compilerOptions A hash of the TypeScript compiler options.
-     * @excludedFolders An array of folders that should be excluded from compilation.
-     * @onCompleteFunc The callback to invoke when the pre-compilation action is complete.
-     */
-    (packagePath: string, compilerOptions: Object, excludedFolders: Array<string>, onCompleteFunc: Function): void;
-}

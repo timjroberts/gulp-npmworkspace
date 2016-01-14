@@ -9,8 +9,7 @@ import * as glob from "glob";
 import File = require("vinyl");
 
 import {ArgumentOptions,
-        PackageDescriptor,
-        PreCompileAction} from "./interfaces";
+        PackageDescriptor} from "./interfaces";
 
 import {TypeScriptCompileOptions} from "./options";
 
@@ -18,8 +17,14 @@ import {pluginName,
         Logger,
         argvExclusiveProjectName} from "./plugin";
 
-const TSC_ARGS_FILENAME: string = "__args.tmp";
+const TSC_ARGS_FILENAME: string = "_args.tmp";
 const TSCONFIG_FILENAME: string = "tsconfig.json";
+
+
+enum FileMode {
+    Inclusion,
+    Exclusion
+}
 
 
 /**
@@ -45,10 +50,15 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
             return callback(null, file);
         }
 
-        let localTypeScriptConfigPath = path.join(pathInfo.dir, TSCONFIG_FILENAME);
-        let hasLocalTypeScriptConfig = fs.existsSync(localTypeScriptConfigPath);
+        let func: () => Array<Object>
+            = file["getWorkspace"]()["getTypeScriptCompilerConfig"]
+              || function(): Array<Object> {
+                    return glob.sync("./tsconfig*.json", { cwd: pathInfo.dir }).map((file) => require(path.resolve(pathInfo.dir, file)));
+              };
 
-        if (!hasLocalTypeScriptConfig) {
+        let typeScriptConfigs = func();
+
+        if (typeScriptConfigs.length === 0) {
             Logger.warn(util.colors.yellow(`Cannot compile workspace package '${packageDescriptor.name}'. Could not find a 'tsconfig.json' file.`));
 
             return callback(null, file);
@@ -56,55 +66,69 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
 
         Logger.info(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-        let localTypeScriptConfig = require(localTypeScriptConfigPath);
+        let count = typeScriptConfigs.length;
+        let receivedError: util.PluginError;
 
-        let compilerOptions = localTypeScriptConfig.compilerOptions || { };
-        let excludedFolders: Array<string> = localTypeScriptConfig.exclude || [ ];
+        let done = function(error: util.PluginError = null) {
+            if (error) {
+                receivedError = error;
+            }
 
-        Logger.verbose((logger) => {
-            logger(`TypeScript compiler options: ${JSON.stringify(compilerOptions)}`);
+            if (--count === 0) {
+                if (receivedError) {
+                    return callback(receivedError, file);
+                }
 
-            excludedFolders.forEach((exclFolder) => { logger(`Excluding folder '${util.colors.blue(exclFolder)}'`); });
-        });
+                let postCompileAction = file["getWorkspace"]()["postTypeScriptCompile"];
 
-        // Call the TypeScript compiler (taking into account the options.fastCompile setting)
+                if (postCompileAction && typeof postCompileAction === "function") {
+                    Logger.info(`Running post-compile action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-        let preCompileAction: PreCompileAction
-            = options.fastCompile ? createTscArgsFile : nullPreCompileAction;
-        let tscCmdLineArgs
-            = options.fastCompile ? [ "@" + TSC_ARGS_FILENAME ] : [ ];
-
-        preCompileAction(pathInfo.dir, compilerOptions, excludedFolders, () => {
-            try {
-                shellExecuteTsc(pathInfo.dir, tscCmdLineArgs);
-
-                let buildFilePath = path.join(pathInfo.dir, "gulpfile-build.js");
-
-                if (fs.existsSync(buildFilePath)) {
-                    let buildFile = require(buildFilePath);
-
-                    if (buildFile["postTypeScriptCompile"] && typeof buildFile["postTypeScriptCompile"] === "function") {
-
-                        Logger.info(`Running post-compile action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
-
-                        buildFile["postTypeScriptCompile"](pathInfo.dir, packageDescriptor);
-                    }
+                    postCompileAction(pathInfo.dir, packageDescriptor);
                 }
 
                 callback(null, file);
             }
-            catch (error) {
-                let message = `Compilation failed for workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
+        }
 
-                Logger.error(message + os.EOL + util.colors.red(error.message));
+        typeScriptConfigs.forEach((localTypeScriptConfig, idx) => {
+            let argsFileName = `_${idx.toString()}_${TSC_ARGS_FILENAME}`;
 
-                callback(options.continueOnError ? null
-                                                : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
-                        file);
-            }
-            finally {
-                if (options.fastCompile) fs.unlinkSync(path.join(pathInfo.dir, TSC_ARGS_FILENAME));
-            }
+            let compilerOptions = localTypeScriptConfig["compilerOptions"] || { };
+            let fileMode
+                = localTypeScriptConfig["files"] ? FileMode.Inclusion
+                                                 : FileMode.Exclusion;
+            let filesOrFolders
+                = fileMode === FileMode.Inclusion ? localTypeScriptConfig["files"] || [ ]
+                                                  : localTypeScriptConfig["exclude"] || [ ];
+
+            Logger.verbose((logger) => {
+                logger(`Compiler options: ${JSON.stringify(compilerOptions)}`);
+
+                if (fileMode === FileMode.Exclusion) {
+                    filesOrFolders.forEach((exclFolder) => { logger(`Excluding folder '${util.colors.blue(exclFolder)}'`); });
+                }
+            });
+
+            // Call the TypeScript compiler (taking into account the options.fastCompile setting)
+            createTscArgsFile(pathInfo.dir, argsFileName, compilerOptions, fileMode, filesOrFolders, () => {
+                try {
+                    shellExecuteTsc(pathInfo.dir, [ "@" + argsFileName ]);
+
+                    done();
+                }
+                catch (error) {
+                    let message = `Compilation failed for workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
+
+                    Logger.error(message + os.EOL + util.colors.red(error.message));
+
+                    done(options.continueOnError ? null
+                                                 : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}));
+                }
+                finally {
+                    fs.unlinkSync(path.join(pathInfo.dir, argsFileName));
+                }
+            });
         });
     });
 }
@@ -128,23 +152,16 @@ function shellExecuteTsc(packagePath: string, compilerArgs: Array<string> = [ ])
 
 
 /**
- * A PreCompileAction that performs no action (simply calls onCompleteFunc()).
- */
-function nullPreCompileAction(packagePath: string, compilerOptions: Object, excludedFolders: Array<string>, onCompleteFunc: Function): void {
-    onCompleteFunc();
-}
-
-
-/**
  * A PreCompileAction implementation that generates a TypeScript 'args' file.
  *
  * @param packagePath The path to the root of the package.
+ * @param argsFileName The filename of the 'args' file.
  * @param compilerOptions A hash of the TypeScript compiler options.
  * @excludedFolders An array of folders that should be excluded from compilation.
  * @onCompleteFunc The callback to invoke when the pre-compilation action is complete.
  */
-function createTscArgsFile(packagePath: string, compilerOptions: Object, excludedFolders: Array<string>, onCompleteFunc: Function): void {
-    let fileStream = fs.createWriteStream(path.join(packagePath, TSC_ARGS_FILENAME));
+function createTscArgsFile(packagePath: string, argsFileName: string, compilerOptions: Object, fileMode: FileMode, filesOrFolders: Array<string>, onCompleteFunc: Function): void {
+    let fileStream = fs.createWriteStream(path.join(packagePath, argsFileName));
 
     fileStream.once("finish", () =>
     {
@@ -160,18 +177,25 @@ function createTscArgsFile(packagePath: string, compilerOptions: Object, exclude
         }
     }
 
-    glob.sync(`./*.ts`, { cwd: packagePath }).forEach((srcFile) => {
-        fileStream.write(`${os.EOL}\"${srcFile}\"`);
-    });
-
-    let packageFolders: Array<string> = _.filter(fs.readdirSync(packagePath), (p) => fs.statSync(path.join(packagePath, p)).isDirectory());
-    let srcFolders: Array<string> = _.difference(packageFolders, excludedFolders); // remove the excluded folders
-
-    srcFolders.forEach((srcFolder) => {
-        glob.sync(`./${srcFolder}/**/*.ts`, { cwd: packagePath }).forEach((srcFile) => {
+    if (fileMode === FileMode.Inclusion) {
+        filesOrFolders.forEach((srcFile) => {
             fileStream.write(`${os.EOL}\"${srcFile}\"`);
         });
-    });
+    }
+    else {
+        glob.sync("./*.ts", { cwd: packagePath, nosort: true }).forEach((srcFile) => {
+            fileStream.write(`${os.EOL}\"${srcFile}\"`);
+        });
+
+        let packageFolders: Array<string> = _.filter(fs.readdirSync(packagePath), (p) => fs.statSync(path.join(packagePath, p)).isDirectory());
+        let srcFolders: Array<string> = _.difference(packageFolders, filesOrFolders); // remove the excluded folders
+
+        srcFolders.forEach((srcFolder) => {
+            glob.sync(`./${srcFolder}/**/*.ts`, { cwd: packagePath, nosort: true }).forEach((srcFile) => {
+                fileStream.write(`${os.EOL}\"${srcFile}\"`);
+            });
+        });
+    }
 
     fileStream.end();
 }

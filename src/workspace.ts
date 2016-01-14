@@ -67,6 +67,14 @@ export function workspacePackages(options?: Object): NodeJS.ReadWriteStream {
             // Only stream packages that are in the workspace
             if (!packageFile) return;
 
+            let workspaceFilePath = path.join(path.parse(packageFile.path).dir, "gulpfile.workspace.js");
+
+            let getWorkspaceFunc = function() {
+                return fs.existsSync(workspaceFilePath) ? require(workspaceFilePath) : { };
+            }
+
+            packageFile["getWorkspace"] = getWorkspaceFunc;
+
             collector.push(packageFile);
         };
 
