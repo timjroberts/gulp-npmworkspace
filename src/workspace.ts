@@ -25,6 +25,8 @@ import {pluginName,
         argv,
         argvProjectName, argvExclusiveProjectName} from "./plugin";
 
+const LINKED_TYPINGS_FOLDER_NAME: string = ".typings";
+
 /**
  * Returns a stream of 'package.json' files that have been found in the workspace. The files
  * are streamed in dependency order.
@@ -305,11 +307,12 @@ export function npmInstall(options?: NpmInstallOptions) {
 
                         if (!packages || packages.length === 0) continue;
 
-                        logger(`  ${registry}`);
-                        packages.forEach((p) => { logger(`    - ${p} (${level})`); });
+                        logger(`  ${util.colors.blue(registry)}`);
+                        packages.forEach((p) => { logger(`    - ${util.colors.cyan(p)} (${level})`); });
                     }
                 };
 
+                logger("Installing:")
                 log("workspace package", packageDependencies);
                 log("workspace", workspaceDependencies);
             });
@@ -321,7 +324,7 @@ export function npmInstall(options?: NpmInstallOptions) {
             let packageTypingsFilePath = path.join(pathInfo.dir, "typings.json");
 
             if (fs.existsSync(packageTypingsFilePath)) {
-                let packageTypingsPath = path.join(pathInfo.dir, "typings");
+                let packageTypingsPath = path.join(pathInfo.dir, LINKED_TYPINGS_FOLDER_NAME);
 
                 if (!fs.existsSync(packageTypingsPath)) fs.mkdirSync(packageTypingsPath);
 
@@ -393,7 +396,7 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
         Logger.info(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
         rimraf.sync(path.resolve(pathInfo.dir, "node_modules"));
-        rimraf.sync(path.resolve(pathInfo.dir, "typings"));
+        rimraf.sync(path.resolve(pathInfo.dir, LINKED_TYPINGS_FOLDER_NAME));
 
         callback(null, file);
     });
