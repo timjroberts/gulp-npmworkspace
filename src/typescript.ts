@@ -11,7 +11,8 @@ import File = require("vinyl");
 import {ArgumentOptions,
         PackageDescriptor} from "./interfaces";
 
-import {TypeScriptCompileOptions} from "./options";
+import {TypeScriptCompileOptions,
+        AsyncAction} from "./options";
 
 import {pluginName,
         Logger,
@@ -50,13 +51,13 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
             return callback(null, file);
         }
 
-        let func: () => Array<Object>
+        let getTypeScriptCompilerConfigFunc: () => Array<Object>
             = file["getWorkspace"]()["getTypeScriptCompilerConfig"]
               || function(): Array<Object> {
                     return glob.sync("./tsconfig*.json", { cwd: pathInfo.dir }).map((file) => require(path.resolve(pathInfo.dir, file)));
               };
 
-        let typeScriptConfigs = func();
+        let typeScriptConfigs = getTypeScriptCompilerConfigFunc();
 
         if (typeScriptConfigs.length === 0) {
             Logger.warn(util.colors.yellow(`Cannot compile workspace package '${packageDescriptor.name}'. Could not find a 'tsconfig.json' file.`));
@@ -86,20 +87,33 @@ export function buildTypeScriptProject(options?: TypeScriptCompileOptions): Node
                             Logger.error(message + os.EOL + util.colors.red(error.message));
 
                             return callback(options.continueOnError ? null
-                                                            : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
+                                                                    : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
                                             file);
                         }
                     }
 
-                    let postCompileAction = file["getWorkspace"]()["postTypeScriptCompile"];
+                    let postCompileAction = <AsyncAction>file["getWorkspace"]()["postTypeScriptCompile"];
 
                     if (postCompileAction && typeof postCompileAction === "function") {
                         Logger.info(`Running post-compile action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-                        postCompileAction(pathInfo.dir, packageDescriptor);
-                    }
+                        postCompileAction(pathInfo.dir, packageDescriptor, (error?: Error) => {
+                            if (error) {
+                                let message = `Post-compile action failed for workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
 
-                    callback(null, file);
+                                Logger.error(message + os.EOL + util.colors.red(error.message));
+
+                                return callback(options.continueOnError ? null
+                                                                        : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
+                                                file);
+                            }
+
+                            callback(null, file);
+                        });
+                    }
+                    else {
+                        callback(null, file);
+                    }
                 }
                 finally {
                     typeScriptArgsFileNames.forEach((argsFileName) => { fs.unlinkSync(path.join(pathInfo.dir, argsFileName)); });

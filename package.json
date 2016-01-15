@@ -26,6 +26,7 @@
         "semver": "5.1.0",
         "rimraf": "2.4.5",
         "underscore": "1.8.3",
+        "jsonfile": "~2.2.3",
         "yargs": "3.31.0",
         "glob": "6.0.3"
     },

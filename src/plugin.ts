@@ -33,6 +33,12 @@ export function argvExclusiveProjectName(): string {
     return (!matches) ? undefined : matches[1];
 }
 
+export function bumpVersion(): string {
+    if (!argv.bumpversion) return undefined;
+
+    return argv.bumpversion;
+}
+
 export interface LogTextFunc {
     (logFunc: (message: string | Chalk.ChalkChain) => void): void;
 }

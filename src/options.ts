@@ -20,14 +20,14 @@ export interface NpmScriptOptions {
     continueOnError?: boolean;
 }
 
-export interface PostIntallAction {
-    (packageDescriptor: PackageDescriptor, path: string): void;
+export interface AsyncAction {
+    (path: string, packageDescriptor: PackageDescriptor, callback: (error?: Error) => void): void;
 }
 
 /**
- * Options for post installation.
+ * An action that it only executed for a given condition.
  */
-export interface PostInstallOption {
+export interface ConditionableOption {
     /**
      * An optional condition function that if returns true will apply the associated action. If no condition is
      * supplied, then the action is always applied.
@@ -38,7 +38,7 @@ export interface PostInstallOption {
      * The action to execute.
      * If the action is a string, then the action is executed in the shell; otherwise the action is a function.
      */
-    action: string | PostIntallAction;
+    action: string | AsyncAction;
 }
 
 /**
@@ -69,7 +69,50 @@ export interface NpmInstallOptions {
     /**
      * A combination of a condition and an action that will be executed once the package has been installed.
      */
-    postInstall?: PostInstallOption;
+    postInstall?: ConditionableOption;
+}
+
+/**
+ * An increment type that can be applied to a package's version.
+ */
+export enum VersionIncrement {
+    major,
+    premajor,
+    minor,
+    preminor,
+    patch,
+    prepatch,
+    prerelease
+}
+
+/**
+ * Options for npmPublish().
+ */
+export interface NpmPublishOptions {
+    /**
+     * true to continue streaming 'package.json' files if the publish errors.
+     *
+     * Defaults to true.
+     */
+    continueOnError?: boolean;
+
+    /**
+     * true to generate a shrikwrap file before publishing.
+     *
+     * Default to true.
+     */
+    shrinkWrap?: boolean;
+
+    /**
+     * An optional version number or a increment type to apply to the 'package.json' files before
+     * they are published.
+     */
+    bump?: string | VersionIncrement;
+
+    /**
+     * A combination of a condition and an action that will be executed before the package is published.
+     */
+    prePublish?: ConditionableOption;
 }
 
 /**

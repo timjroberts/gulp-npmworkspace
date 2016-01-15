@@ -8,6 +8,8 @@ export interface ArgumentOptions {
     package?: string;
 
     verbose?: boolean;
+
+    bumpversion?: string;
 }
 
 export interface PackageDescriptor {

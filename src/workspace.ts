@@ -8,6 +8,7 @@ import * as through from "through2";
 import * as _ from "underscore";
 import * as semver from "semver";
 import * as rimraf from "rimraf";
+import * as jsonFile from "jsonfile";
 import {DepGraph} from "dependency-graph";
 import File = require("vinyl");
 
@@ -17,13 +18,16 @@ import {Dictionary,
 
 import {NpmInstallOptions,
         NpmScriptOptions,
-        PostInstallOption,
-        PostIntallAction} from "./options";
+        NpmPublishOptions,
+        ConditionableOption,
+        VersionIncrement,
+        AsyncAction} from "./options";
 
 import {pluginName,
         Logger,
         argv,
-        argvProjectName, argvExclusiveProjectName} from "./plugin";
+        argvProjectName, argvExclusiveProjectName,
+        bumpVersion} from "./plugin";
 
 const LINKED_TYPINGS_FOLDER_NAME: string = ".typings";
 
@@ -176,6 +180,82 @@ export function npmScript(scriptName: string, options?: NpmScriptOptions): NodeJ
 
 
 /**
+ * Accepts and returns a stream of 'package.json' files and performs a npm publish for each one.
+ *
+ * @param options A hash of options.
+ */
+export function npmPublish(options?: NpmPublishOptions): NodeJS.ReadWriteStream {
+    options = _.defaults(options || { }, { continueOnError: true, shrinkWrap: true, bump: undefined });
+
+    let requiredPackageName = argvExclusiveProjectName();
+
+    return through.obj(function (file: File, encoding, callback) {
+        if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams not supported."));
+
+        let pathInfo = path.parse(file.path);
+
+        if (pathInfo.base !== "package.json") return callback(new util.PluginError(pluginName, "Expected a 'package.json' file."));
+
+        let packageDescriptor = JSON.parse(file.contents.toString());
+
+        if (requiredPackageName && packageDescriptor.name !== requiredPackageName) {
+            return callback(null, file);
+        }
+
+        let publishFunc = function() {
+            try {
+                if (options.shrinkWrap) {
+                    shellExecuteNpm(pathInfo.dir, [ "shrinkwrap" ]);
+                }
+
+                let bump: string | VersionIncrement = bumpVersion() || options.bump;
+
+                if (bump) {
+                    file.contents = applyVersionBump(file.path, packageDescriptor, bump);
+                }
+
+                shellExecuteNpm(pathInfo.dir, [ "publish" ]);
+
+                callback(null, file);
+            }
+            catch (error) {
+                let message = `Error publishing workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
+
+                Logger.error(message + os.EOL + error.message);
+
+                callback(options.continueOnError ? null
+                                                 : new util.PluginError(pluginName, message, { showProperties: false, showStack: false}),
+                         file);
+            }
+        }
+
+        let prePublishAction = <AsyncAction>file["getWorkspace"]()["prePublish"];
+
+        if (prePublishAction && typeof prePublishAction === "function") {
+            Logger.info(`Running pre-publish action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
+            prePublishAction(pathInfo.dir, packageDescriptor, (error?: Error) => {
+                if (error) {
+                    let message = `Pre-publish action failed for workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
+
+                    Logger.error(message + os.EOL + error.message);
+
+                    if (!options.continueOnError) {
+                        return callback(new util.PluginError(pluginName, message, { showProperties: false, showStack: false}), file);
+                    }
+                }
+
+                publishFunc();
+            });
+        }
+        else {
+            publishFunc();
+        }
+    });
+}
+
+
+/**
  * Accepts and returns a stream of 'package.json' files and installs the dependant packages for each one.
  * Symbolic links are created for each dependency if it is present in the workspace.
  *
@@ -215,11 +295,11 @@ export function npmInstall(options?: NpmInstallOptions) {
     }
 
     return through.obj(function (file: File, encoding, callback) {
-        if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
+        if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams not supported."));
 
         let pathInfo = path.parse(file.path);
 
-        if (pathInfo.base !== "package.json") return callback(new util.PluginError("install", "Expected a 'package.json' file."));
+        if (pathInfo.base !== "package.json") return callback(new util.PluginError(pluginName, "Expected a 'package.json' file."));
 
         let packageDescriptor = JSON.parse(file.contents.toString());
 
@@ -355,11 +435,24 @@ export function npmInstall(options?: NpmInstallOptions) {
                     shellExecute(pathInfo.dir, <string>options.postInstall.action);
                 }
                 else if (runPostInstall && typeof options.postInstall.action === "function") {
-                    (<PostIntallAction>options.postInstall.action)(packageDescriptor, pathInfo.dir);
+                    (<AsyncAction>options.postInstall.action)(pathInfo.dir, packageDescriptor, (error?: Error) => {
+                        if (error) {
+                            let message = `Post-install action failed for workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
+
+                            Logger.error(message + os.EOL + error.message);
+
+                            if (!options.continueOnError) {
+                                return callback(new util.PluginError(pluginName, message, { showProperties: false, showStack: false}), file);
+                            }
+                        }
+
+                        callback(null, file);
+                    });
                 }
             }
-
-            callback(null, file);
+            else {
+                callback(null, file);
+            }
         }
         catch (error) {
             let message = `Error installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`;
@@ -381,7 +474,7 @@ export function npmUninstall(): NodeJS.ReadWriteStream {
     let requiredPackageName = argvExclusiveProjectName();
 
     return through.obj(function (file: File, encoding, callback) {
-        if (file.isStream()) return callback(new util.PluginError("install", "Streams not supported."));
+        if (file.isStream()) return callback(new util.PluginError(pluginName, "Streams not supported."));
 
         var pathInfo = path.parse(file.path);
 
@@ -430,6 +523,19 @@ function createPackageSymLink(sourcePath: string, packageName: string, targetPat
 }
 
 
+function shellExecuteNpm(packagePath: string, cmdArgs: Array<string>): void {
+    var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", cmdArgs, { cwd: packagePath });
+
+    if (result.status !== 0) {
+        Logger.verbose((logger) => {
+            logger(`npm ${cmdArgs.join(" ")}`);
+        });
+
+        throw new Error(result.stderr.toString());
+    }
+}
+
+
 function shellExecuteNpmInstall(packagePath: string, registryPackages: Dictionary<Array<string>>): void {
     for (let registry in registryPackages) {
         let packages = registryPackages[registry];
@@ -449,15 +555,7 @@ function shellExecuteNpmInstall(packagePath: string, registryPackages: Dictionar
             installArgs.push(registry);
         }
 
-        var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", installArgs, { cwd: packagePath });
-
-        if (result.status !== 0) {
-            Logger.verbose((logger) => {
-                logger(`npm ${installArgs.join(" ")}`);
-            });
-
-            throw new Error(result.stderr.toString());
-        }
+        shellExecuteNpm(packagePath, installArgs);
     }
 }
 
@@ -468,4 +566,31 @@ function shellExecute(packagePath: string, shellCommand: string): string {
     var result = childProcess.execSync(shellCommand, { cwd: packagePath });
 
     return result.toString();
+}
+
+
+function applyVersionBump(packageFilePath: string, packageDescriptor: Object, bump: string | VersionIncrement): Buffer {
+    let versionIncrement = VersionIncrement[VersionIncrement[bump]];
+
+    let version: string;
+
+    if (versionIncrement) {
+        version = semver.inc(packageDescriptor["version"], versionIncrement);
+    }
+    else {
+        version = semver.valid(<string>bump);
+
+        if (!version) {
+            throw new Error(`'${bump}' is not a valid version.`);
+        }
+    }
+
+    Logger.verbose(`Bumping workspace package '${util.colors.cyan(packageDescriptor["name"])}' to version '${version}'`);
+
+    packageDescriptor["version"] = version;
+
+    jsonFile.writeFileSync(packageFilePath, packageDescriptor, { spaces: 4 });
+
+
+    return new Buffer(JSON.stringify(packageDescriptor));
 }
