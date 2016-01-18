@@ -1,5 +1,6 @@
 local_typings
 src
+lib/test
 typings
 gulpfile.js
 tsconfig.json

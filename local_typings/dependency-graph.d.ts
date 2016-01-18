@@ -1,4 +1,4 @@
-declare module "dependency-graph" {
+declare namespace DependencyGraph {
     export class DepGraph {
         constructor();
         
@@ -9,5 +9,9 @@ declare module "dependency-graph" {
         dependenciesOf(name: string, leavesOnly?: boolean): Array<string>;
         
         overallOrder(leavesOnly?: boolean): Array<string>;
-    }    
+    }     
+}
+
+declare module "dependency-graph" {
+   export = DependencyGraph;
 }
