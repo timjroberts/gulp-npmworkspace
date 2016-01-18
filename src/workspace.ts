@@ -229,6 +229,8 @@ export function npmPublish(options?: NpmPublishOptions): NodeJS.ReadWriteStream 
             }
         }
 
+        Logger.info(`Publishing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
         let prePublishAction = <AsyncAction>file["getWorkspace"]()["prePublish"];
 
         if (prePublishAction && typeof prePublishAction === "function") {
