@@ -1,4 +1,7 @@
 {
+    "dependencies": {
+        "promise": "file:../workspace-typings/Promise.d.ts"
+    },
     "ambientDependencies": {
         "gulp": "github:DefinitelyTyped/DefinitelyTyped/gulp/gulp.d.ts",
         "gulp-util": "github:DefinitelyTyped/DefinitelyTyped/gulp-util/gulp-util.d.ts",
@@ -12,6 +15,9 @@
         "semver": "github:DefinitelyTyped/DefinitelyTyped/semver/semver.d.ts",
         "underscore": "github:DefinitelyTyped/DefinitelyTyped/underscore/underscore.d.ts",
         "glob": "github:DefinitelyTyped/DefinitelyTyped/glob/glob.d.ts",
-        "minimatch": "github:DefinitelyTyped/DefinitelyTyped/minimatch/minimatch.d.ts"
+        "minimatch": "github:DefinitelyTyped/DefinitelyTyped/minimatch/minimatch.d.ts",
+        "dependency-graph": "file:../workspace-typings/dependency-graph.d.ts",
+        "jsonfile": "file:../workspace-typings/jsonfile.d.ts",
+        "tmp": "file:../workspace-typings/tmp.d.ts"
     }
 }

@@ -1,3 +1,7 @@
 node_modules
 typings
-lib
+.typings
+dist
+*.js
+*.js.map
+!gulpfile.js

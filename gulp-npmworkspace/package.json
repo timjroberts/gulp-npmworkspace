@@ -1,0 +1,43 @@
+{
+    "name": "gulp-npmworkspace",
+    "version": "1.1.0",
+    "description": "Provides 'workspace' like utilities to simplify the link-ing and install-ing of npm packages during development.",
+    "author": "Tim Roberts <tim@timjroberts.com>",
+    "license": "BSD",
+    "main": "./dist/index.js",
+    "typings": "./dist/index.d.ts",
+    "scripts": {
+        "test-specs": "cucumberjs ./src/test/specification -r ./lib/test/specification"
+    },
+    "engineStrict": true,
+    "engines": {
+        "node": ">=4.0.0"
+    },
+    "keywords": [
+        "gulp",
+        "npm",
+        "link",
+        "dependencies",
+        "workspace"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/timjroberts/gulp-npmworkspace.git"
+    },
+    "dependencies": {
+        "gulp": "~3.9.0",
+        "vinyl": "~1.1.0",
+        "gulp-util": "~3.0.7",
+        "through2": "~2.0.0",
+        "dependency-graph": "~0.4.1",
+        "semver": "~5.1.0",
+        "rimraf": "~2.4.5",
+        "underscore": "~1.8.3",
+        "jsonfile": "~2.2.3",
+        "yargs": "~3.31.0",
+        "glob": "~6.0.3"
+    },
+    "devDependencies": {
+        "typescript": "~1.7.5"
+    }
+}

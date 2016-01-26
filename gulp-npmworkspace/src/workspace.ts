@@ -447,10 +447,10 @@ export function npmInstall(options?: NpmInstallOptions) {
                                 return callback(new util.PluginError(pluginName, message, { showProperties: false, showStack: false}), file);
                             }
                         }
-
-                        callback(null, file);
                     });
                 }
+
+                callback(null, file);
             }
             else {
                 callback(null, file);

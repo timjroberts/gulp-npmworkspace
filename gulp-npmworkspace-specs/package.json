@@ -1,0 +1,22 @@
+{
+    "private": true,
+    "name": "gulp-npmworkspace-specs",
+    "version": "0.0.0",
+    "description": "Specifications for 'gulp-npmworkspace'.",
+    "author": "Tim Roberts <tim@timjroberts.com>",
+    "license": "BSD",
+    "engineStrict": true,
+    "engines": {
+        "node": ">=4.0.0"
+    },
+    "dependencies": {
+        "gulp-npmworkspace": "*",
+        "tmp": "~0.0.28",
+        "jsonfile": "~2.2.3",
+        "underscore": "~1.8.3"
+    },
+    "devDependencies": {
+        "typescript": "~1.7.5",
+        "gulp-cucumber": "~0.0.15"
+    }
+}
