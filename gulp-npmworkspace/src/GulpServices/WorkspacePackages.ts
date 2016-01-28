@@ -14,29 +14,48 @@ import File = require("vinyl");
 const LOCAL_GULP_WORKSPACE_FILENAME: string = "gulpfile.workspace.js";
 
 
+type TransformAction = (file: File, encoding: string, callback: Function) => void;
+type CompleteAction = (callback: () => void) => void;
+
+
 /**
  * A private class that provides context for the collection of workspace packages.
  */
 class CollectContext {
-    private _packageGraph: DepGraph;
-    private _packageMap: IDictionary<File>;
+    private _packageGraph: DepGraph = new DepGraph();
+    private _packageMap: IDictionary<File> = { };
 
-    constructor() {
-        this._packageGraph = new DepGraph();
-        this._packageMap = { };
-    }
-
+    /**
+     * Adds a package.
+     *
+     * @param packageDescriptor The package descriptor of the package to add.
+     * @param file The 'Gulp' file that represents the package descriptor.
+     */
     public addPackage(packageDescriptor: PackageDescriptor, file: File): void {
         this._packageGraph.addNode(packageDescriptor.name);
         this._packageMap[packageDescriptor.name] = file;
     }
 
+    /**
+     * Adds a dependency between two packages.
+     *
+     * @param packageDescriptor The package descriptor of the package that is the 'dependant'.
+     * @param packageDependencyName The name of the package that is the 'dependency'.
+     */
     public addPackageDependency(packageDescriptor: PackageDescriptor, packageDependencyName: string): void {
         this._packageGraph.addNode(packageDependencyName);
         this._packageGraph.addDependency(packageDescriptor.name, packageDependencyName);
     }
 
-    public collect(targetStream: NodeJS.ReadWriteStream, transformFunc?: (file: File) => File): void {
+    /**
+     * Writes the current collection of packages to a stream in dependency order.
+     *
+     * @param targetStream The stream that will be written.
+     * @param callback A function that will be called when complete.
+     * @param transformFunc An optional function that can transform the 'Gulp' file before it is written to the
+     * stream.
+     */
+    public writeToStream(targetStream: NodeJS.ReadWriteStream, callback: Function, transformFunc?: (file: File) => File): void {
         let collectFunc = function(packageName: string) {
             var packageFile: File = this._packageMap[packageName];
 
@@ -57,6 +76,8 @@ class CollectContext {
         else {
             this._packageGraph.overallOrder().forEach(collectFunc, this);
         }
+
+        callback();
     }
 }
 
@@ -74,28 +95,26 @@ export function workspacePackages(options?: gulp.SrcOptions): NodeJS.ReadWriteSt
     options = _.extend(options || { }, { read: true });
 
     let context = new CollectContext();
-    let packagesStream = gulp.src([ "./package.json", "./*/package.json" ], options);
-    let collector = collectPackages(context);
 
-    packagesStream.once("end", () => { streamCollectedPackages(context, collector); });
-
-    return packagesStream.pipe(collector);
+    return gulp.src([ "./package.json", "./*/package.json" ], options)
+        .pipe(through.obj(collectPackages(context), streamPackages(context)));
 }
 
 
 /**
- * Accepts a stream of 'package.json' files and passes each one through to the given [[CollectContext]].
+ * Returns a [[TransformAction]] that pushes 'package.json' files into a [[CollectContext]] object.
  *
  * @param context The [[CollectContext]] to use when collecting the 'package.json' files.
  *
- * @returns A stream that yields nothing.
+ * @returns A [[TransformAction]] function.
  *
- * collectPackages() returns a stream that yields no output. Instead, it pushes the received 'package.json'
- * files into the given [[CollectContext]] object which can then be used with streamCollectedPackages()
- * in order to stream the collected 'package.json' files out in dependency order once processed.
+ * [[collectPackages]] does not write the received 'package.json' files into the output stream. Instead
+ * it simply gathers them into the supplied [[CollectContext]] object. [[streamPackages]] can be used as
+ * a flush function to output the received 'package.json' files in dependency order once all the files
+ * have been received.
  */
-function collectPackages(context: CollectContext): NodeJS.ReadWriteStream {
-    return through.obj((file: File, _encoding, callback) => {
+function collectPackages(context: CollectContext): TransformAction {
+    return function (file: File, encoding, callback: Function) {
         if (file.isStream()) {
             return callback(new util.PluginError(pluginName, "Streams are not supported."));
         }
@@ -116,27 +135,31 @@ function collectPackages(context: CollectContext): NodeJS.ReadWriteStream {
         }
 
         callback();
-    });
+    };
 }
 
 
 /**
- * Returns a stream of 'package.json' files by collecting from the given [[CollectContext]].
+ * Returns a [[CompleteAction]] that streams the 'package.json' files from a given [[CollectContext]].
  *
- * @param context The [[CollectContext]] to retrieve workspace packages from.
+ * @param context The [[CollectContext]] from which to stream 'package.json' files.
  *
- * @returns A stream of 'package.json' files in dependency order.
+ * @returns A [[CompleteAction]] function.
+ *
+ * The supplied [[CollectContext]] object will stream the 'package.json' files in dependency order.
  */
-function streamCollectedPackages(context: CollectContext, targetStream: NodeJS.ReadWriteStream): void {
-    context.collect(targetStream, (file: File) => {
-        let workspaceFilePath = path.join(path.parse(file.path).dir, LOCAL_GULP_WORKSPACE_FILENAME);
+function streamPackages(context: CollectContext): CompleteAction {
+    return function (callback: Function) {
+        context.writeToStream(this, callback, (file: File) => {
+            let workspaceFilePath = path.join(path.parse(file.path).dir, LOCAL_GULP_WORKSPACE_FILENAME);
 
-        let getWorkspaceFunc = function() {
-            return fs.existsSync(workspaceFilePath) ? require(workspaceFilePath) : { };
-        }
+            let getWorkspaceFunc = function() {
+                return fs.existsSync(workspaceFilePath) ? require(workspaceFilePath) : { };
+            }
 
-        file["getWorkspace"] = getWorkspaceFunc;
+            file["getWorkspace"] = getWorkspaceFunc;
 
-        return file;
-    });
+            return file;
+        });
+    };
 }
