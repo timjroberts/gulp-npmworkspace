@@ -11,12 +11,12 @@
     },
     "dependencies": {
         "gulp-npmworkspace": "*",
+        "through2": "~2.0.0",
         "tmp": "~0.0.28",
         "jsonfile": "~2.2.3",
         "underscore": "~1.8.3"
     },
     "devDependencies": {
-        "typescript": "~1.7.5",
-        "gulp-cucumber": "~0.0.15"
+        "typescript": "~1.7.5"
     }
 }

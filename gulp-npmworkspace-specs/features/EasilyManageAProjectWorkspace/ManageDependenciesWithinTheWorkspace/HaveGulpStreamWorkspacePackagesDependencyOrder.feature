@@ -20,4 +20,4 @@ Scenario: Simple linear dependencies
         | package-b | package-a    |
         | package-c | package-b    |
     When the workspace packages are streamed
-    Then the order of the packages received is "package-c, package-b, package-a"
+    Then the order of the packages received is "package-a, package-b, package-c"

@@ -18,6 +18,15 @@ export class Workspace implements ITemporaryWorkspace {
     private _workspacePackages: Map<string, WorkspacePackage> = new Map<string, WorkspacePackage>();
 
     /**
+     * Gets the path to the current workspace.
+     *
+     * @returns A string representing the path to the workspace.
+     */
+    public get path(): string {
+        return this._workspacePath;
+    }
+
+    /**
      * Retrieves a change tracker that can be used to create and update workspace packages in the
      * current workspace.
      *
@@ -45,9 +54,7 @@ export class Workspace implements ITemporaryWorkspace {
                                    (<any>trackedWorkspacePackage)._packageDescriptor,
                                    { spaces: 4 });
 
-            if (this._workspacePackages.has(trackedWorkspacePackage.name)) {
-                this._workspacePackages.set(trackedWorkspacePackage.name, new WorkspacePackage(trackedWorkspacePackage));
-            }
+            this._workspacePackages.set(trackedWorkspacePackage.name, new WorkspacePackage(trackedWorkspacePackage));
         });
     }
 

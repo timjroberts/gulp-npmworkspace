@@ -95,7 +95,7 @@ export function workspacePackages(options?: gulp.SrcOptions): NodeJS.ReadWriteSt
  * in order to stream the collected 'package.json' files out in dependency order once processed.
  */
 function collectPackages(context: CollectContext): NodeJS.ReadWriteStream {
-    return through.obj((file: File, _, callback) => {
+    return through.obj((file: File, _encoding, callback) => {
         if (file.isStream()) {
             return callback(new util.PluginError(pluginName, "Streams are not supported."));
         }

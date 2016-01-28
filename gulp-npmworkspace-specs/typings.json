@@ -2,8 +2,13 @@
     "dependencies": {
     },
     "ambientDependencies": {
+        "gulp": "github:DefinitelyTyped/DefinitelyTyped/gulp/gulp.d.ts",
+        "orchestrator": "github:DefinitelyTyped/DefinitelyTyped/orchestrator/orchestrator.d.ts",
+        "q": "github:DefinitelyTyped/DefinitelyTyped/q/Q.d.ts",
+        "vinyl": "github:DefinitelyTyped/DefinitelyTyped/vinyl/vinyl.d.ts",
         "node": "github:DefinitelyTyped/DefinitelyTyped/node/node.d.ts",
         "underscore": "github:DefinitelyTyped/DefinitelyTyped/underscore/underscore.d.ts",
+        "through2": "github:DefinitelyTyped/DefinitelyTyped/through2/through2.d.ts",
         "tmp": "file:../workspace-typings/tmp.d.ts",
         "jsonfile": "file:../workspace-typings/jsonfile.d.ts"
     }

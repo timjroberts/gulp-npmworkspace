@@ -1,3 +1,5 @@
+import * as path from "path"
+
 interface ArgumentOptions {
     package?: string;
 
@@ -11,7 +13,7 @@ const argv: ArgumentOptions = require("yargs")
     .alias("v", "verbose")
     .argv;
 
-export const pluginName = (<PackageDescriptor>require("../package.json")).name;
+export const pluginName = (<PackageDescriptor>require(path.join(__dirname, "../../package.json"))).name;
 
 export function getPackageName(): string {
     if (!argv.package) {
