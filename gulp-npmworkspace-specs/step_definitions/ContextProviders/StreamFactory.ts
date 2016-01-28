@@ -47,7 +47,7 @@ export abstract class PackageDescriptorStreamFactory {
 /**
  * A package descriptor stream factory that applies an action to each received package descriptor.
  */
-export class PackageDescriptorActionStreamFactory extends PackageDescriptorStreamFactory {
+export class PackageDescriptorStreamActionFactory extends PackageDescriptorStreamFactory {
     /**
      * Initialises a new package descriptor stream factory.
      *

@@ -8,7 +8,7 @@ import {workspacePackages} from "gulp-npmworkspace";
 
 import {Workspace} from "./ContextProviders/Workspace";
 import {WorkspacePackage} from "./ContextProviders/WorkspacePackage";
-import {PackageDescriptorStreamFactory, PackageDescriptorActionStreamFactory} from "./ContextProviders/StreamFactory";
+import {PackageDescriptorStreamFactory, PackageDescriptorStreamActionFactory} from "./ContextProviders/StreamFactory";
 
 /**
  * Populates a workspace with a set of packages and their dependencies.
@@ -50,7 +50,7 @@ async function assertStreamedPackageOrder(expectedPackageOrder: string) {
         collectedPackages.push(packageDescriptor.name);
     };
 
-    workspacePackageStream = workspacePackageStream.pipe(new PackageDescriptorActionStreamFactory(collectorFunc).createStream());
+    workspacePackageStream = workspacePackageStream.pipe(new PackageDescriptorStreamActionFactory(collectorFunc).createStream());
 
     await PackageDescriptorStreamFactory.readStreamAsync(workspacePackageStream);
 
@@ -63,6 +63,25 @@ async function assertStreamedPackageOrder(expectedPackageOrder: string) {
 
         assert.equal(collectedPackage, expectedPackage, `Expected package '${expectedPackage}' but got package '${collectedPackage}' (position ${idx}).`);
     });
+}
+
+/**
+ * Ensures that circular dependencies in the streamed workspace packages are manifested as
+ * an error.
+ */
+async function assertCircularDependency() {
+    let workspacePackageStream: NodeJS.ReadWriteStream = this["workspacePackageStream"];
+
+    let receivedError = undefined;
+
+    try {
+        await PackageDescriptorStreamFactory.readStreamAsync(workspacePackageStream);
+    }
+    catch (error) {
+        receivedError = error;
+    }
+
+    if (!receivedError) throw new assert.AssertionError({ message: "Expected an error." });
 }
 
 function toDependencyDictionary(csvList: string): IDictionary<string> {
@@ -81,6 +100,7 @@ function WorkspaceSteps() {
     this.Given(/^a Workspace with:$/, populateWorkspaceWithPackages);
     this.When(/the workspace packages are streamed/, streamWorkspacePackages);
     this.Then(/^the order of the packages received is "([^"]*)"$/, assertStreamedPackageOrder);
+    this.Then(/a circular dependency error is reported/, assertCircularDependency)
 }
 
 export = WorkspaceSteps;
