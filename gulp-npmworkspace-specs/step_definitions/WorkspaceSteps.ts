@@ -33,7 +33,7 @@ async function populateWorkspaceWithPackages(table) {
 async function streamWorkspacePackages() {
     let workspace: Workspace = this["workspace"];
 
-    this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path });
+    this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: false });
 }
 
 /**

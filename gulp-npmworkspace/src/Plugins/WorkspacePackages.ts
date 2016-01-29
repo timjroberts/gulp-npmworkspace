@@ -1,4 +1,3 @@
-
 import * as gulp from "gulp";
 import * as util from "gulp-util";
 import * as path from "path";
@@ -7,9 +6,11 @@ import * as _ from "underscore";
 import * as through from "through2";
 import File = require("vinyl");
 
+import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {getPackageName, pluginName} from "../utilities/CommandLine";
 import {TransformAction, TransformCallback, FlushAction, FlushCallback} from "./StreamFunctionTypes";
 import {PackageDependencyContext} from "./utilities/PackageDependencyContext";
+import {Logger} from "./utilities/Logging";
 
 const LOCAL_GULP_WORKSPACE_FILENAME: string = "gulpfile.workspace.js";
 
@@ -22,15 +23,14 @@ const LOCAL_GULP_WORKSPACE_FILENAME: string = "gulpfile.workspace.js";
  *
  * @returns A stream that contains the 'package.json' files found in the current workspace.
  */
-export function workspacePackages(options?: gulp.SrcOptions): NodeJS.ReadWriteStream {
-    options = _.extend(options || { }, { read: true });
+export function workspacePackages(options?: gulp.SrcOptions & NpmWorkspacePluginOptions): NodeJS.ReadWriteStream {
+    options = _.extend(getWorkspacePluginOptions(options), options, { read: true });
 
     let context = new PackageDependencyContext();
 
     return gulp.src([ "./package.json", "./*/package.json" ], options)
-        .pipe(through.obj(collectPackages(context), streamPackages(context)));
+        .pipe(through.obj(collectPackages(context), streamPackages(context, options)));
 }
-
 
 /**
  * Returns a [[TransformAction]] that pushes 'package.json' files into a [[PackageDependencyContext]] object.
@@ -69,7 +69,6 @@ function collectPackages(context: PackageDependencyContext): TransformAction {
     };
 }
 
-
 /**
  * Returns a [[FlushAction]] that streams the 'package.json' files from a given [[PackageDependencyContext]].
  *
@@ -79,7 +78,7 @@ function collectPackages(context: PackageDependencyContext): TransformAction {
  *
  * The supplied [[PackageDependencyContext]] object will stream the 'package.json' files in dependency order.
  */
-function streamPackages(context: PackageDependencyContext): FlushAction {
+function streamPackages(context: PackageDependencyContext, options: NpmWorkspacePluginOptions): FlushAction {
     return function (callback: FlushCallback) {
         try {
             context.writeToStream(this, (file: File) => {
@@ -91,13 +90,28 @@ function streamPackages(context: PackageDependencyContext): FlushAction {
                     return fs.existsSync(workspaceFilePath) ? require(workspaceFilePath) : { };
                 };
 
+                file["workspaceOptions"] = options;
+
                 return file;
             });
 
             callback();
         }
         catch (error) {
-            callback(error);
+            if (options.enableLogging) {
+                let packageNameRegExp = /(?:\:|->)\s((?:\w|-)*)\s?/g;
+
+                let findPackageNames = () => {
+                    let match = packageNameRegExp.exec(error.message);
+
+                    return match ? util.colors.red(`'${util.colors.cyan(match[1])}' -> ${findPackageNames()}`)
+                                : util.colors.red("...");
+                };
+
+                Logger.error(util.colors.red(`Circular dependency found in Workspace: ${findPackageNames()}`));
+            }
+
+            callback(new util.PluginError(pluginName, "Circular dependency found.", { showProperties: false, showStack: false}));
         }
     };
 }
