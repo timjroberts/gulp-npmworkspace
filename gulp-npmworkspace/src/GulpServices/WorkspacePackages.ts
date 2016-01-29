@@ -85,6 +85,8 @@ function streamPackages(context: PackageDependencyContext): FlushAction {
             context.writeToStream(this, (file: File) => {
                 let workspaceFilePath = path.join(path.parse(file.path).dir, LOCAL_GULP_WORKSPACE_FILENAME);
 
+                // Add a getWorkspace() function the streamed file that returns the 'gulp.workspace.js' file
+                // that may be present in the workspace package folder.
                 file["getWorkspace"] = function() {
                     return fs.existsSync(workspaceFilePath) ? require(workspaceFilePath) : { };
                 };

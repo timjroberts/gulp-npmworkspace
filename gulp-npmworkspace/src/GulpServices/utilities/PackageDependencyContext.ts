@@ -4,7 +4,7 @@ import File = require("vinyl");
 import {getPackageName} from "../../utilities/CommandLine";
 
 /**
- * A private class that collects workspace packages and the dependencies between them.
+ * Collects workspace packages and the dependencies between them.
  */
 export class PackageDependencyContext {
     private _packageGraph: DepGraph = new DepGraph();

@@ -39,20 +39,12 @@ async function streamWorkspacePackages() {
 /**
  * Ensures that the order of the streamed workspace packages are in the expected order.
  *
+
  * @param expectedPackageOrder A comma seperated string representing the names of the packages
  * and their order when streamed.
  */
 async function assertStreamedPackageOrder(expectedPackageOrder: string) {
-    let workspacePackageStream: NodeJS.ReadWriteStream = this["workspacePackageStream"];
-
-    let collectedPackages: string[] = [ ];
-    let collectorFunc = (packageDescriptor: any) => {
-        collectedPackages.push(packageDescriptor.name);
-    };
-
-    workspacePackageStream = workspacePackageStream.pipe(new PackageDescriptorStreamActionFactory(collectorFunc).createStream());
-
-    await PackageDescriptorStreamFactory.readStreamAsync(workspacePackageStream);
+    let collectedPackages = await pullPackages(this);
 
     let expectedPackages = _.map(expectedPackageOrder.split(","), (s) => s.trim() );
 
@@ -70,12 +62,10 @@ async function assertStreamedPackageOrder(expectedPackageOrder: string) {
  * an error.
  */
 async function assertCircularDependency() {
-    let workspacePackageStream: NodeJS.ReadWriteStream = this["workspacePackageStream"];
-
     let receivedError = undefined;
 
     try {
-        await PackageDescriptorStreamFactory.readStreamAsync(workspacePackageStream);
+        await PackageDescriptorStreamFactory.readStreamAsync(this["workspacePackageStream"]);
     }
     catch (error) {
         receivedError = error;
@@ -84,23 +74,109 @@ async function assertCircularDependency() {
     if (!receivedError) throw new assert.AssertionError({ message: "Expected an error." });
 }
 
+/**
+ * Ensures that the given packages are streamed before any others.
+ *
+ * @param expectedPackages A comma seperated string representing the name of the packages whose
+ * order in the stream should be before any others.
+ */
+async function assertPackagesComesBeforeAllOthers(expectedPackages: string) {
+    let collectedPackages = await pullPackages(this);
+
+    let expectedPackageIndexes = toIndexDictionary(expectedPackages, collectedPackages);
+    let collectedPackageIndexes = _.omit(_.object(collectedPackages, _.map(collectedPackages, (p) => collectedPackages.indexOf(p))), _.keys(expectedPackageIndexes));
+
+    assertPackageOrder(expectedPackageIndexes, collectedPackageIndexes);
+}
+
+/**
+ * Ensures that one set of packages are streamed before another set of packages.
+ *
+ * @param expectedPackages A comma seperated string representing the name of the packages whose
+ * order in the stream should be before the others.
+ * @param otherPackages A comma seperated string representing the name of the other packages.
+ */
+async function assertPackagesComesBeforeOthers(expectedPackages: string, otherPackages: string) {
+    let collectedPackages = await pullPackages(this);
+
+    let expectedPackageIndexes = toIndexDictionary(expectedPackages, collectedPackages);
+    let collectedPackageIndexes = toIndexDictionary(otherPackages, collectedPackages);
+
+    assertPackageOrder(expectedPackageIndexes, collectedPackageIndexes);
+}
+
+function assertPackageOrder(expectedPackages: Object, collectedPackages: Object): void {
+    for (let expectedPackage in expectedPackages) {
+        let expectedPackageIndex = expectedPackages[expectedPackage];
+
+        for (let collectedPackage in collectedPackages) {
+            let collectedPackageIndex = collectedPackages[collectedPackage];
+
+            if (expectedPackageIndex >= collectedPackageIndex) {
+                throw new assert.AssertionError({ message: `Expected package '${expectedPackage}' to come before package '${collectedPackage}'.` })
+            }
+        }
+    }
+}
+
+/**
+ * Pulls the package descriptors through the workspace package stream. The stream will only
+ * be pulled once and subsequent calls during the current scenario will return the same
+ * packages.
+ */
+async function pullPackages(world: any): Promise<string[]> {
+    let collectedPackages: string[] = world["pulledWorkspacePackages"];
+
+    if (collectedPackages) return collectedPackages;
+
+    let workspacePackageStream: NodeJS.ReadWriteStream = world["workspacePackageStream"];
+
+    collectedPackages = [ ];
+
+    let collectorFunc = (packageDescriptor: any) => {
+        collectedPackages.push(packageDescriptor.name);
+    };
+
+    workspacePackageStream = workspacePackageStream.pipe(new PackageDescriptorStreamActionFactory(collectorFunc).createStream());
+
+    await PackageDescriptorStreamFactory.readStreamAsync(workspacePackageStream);
+
+    world["pulledWorkspacePackages"] = collectedPackages;
+
+    return collectedPackages;
+}
+
 function toDependencyDictionary(csvList: string): IDictionary<string> {
+    return createDependencyDictionary<string>(csvList, (dependencyName: string, version: string) => {
+        return version;
+    });
+}
+
+function toIndexDictionary(csvList: string, array: string[]): IDictionary<number> {
+    return createDependencyDictionary<number>(csvList, (dependencyName: string, version: string) => {
+        return array.indexOf(dependencyName);
+    });
+}
+
+function createDependencyDictionary<TValue>(csvList: string, func: (dependencyName: string, version: string) => TValue): IDictionary<TValue> {
     let regex = /([\w|-]+)@?((?:\^|~)?(?:\d*)(?:\.?\d*)(?:\.?\d*))?/;
 
-    return <IDictionary<string>>_.object(_.map(csvList.split(","), (csvEntry) => {
+    return <IDictionary<TValue>>_.object(_.map(csvList.split(","), (csvEntry) => {
         let matches = regex.exec(csvEntry);
 
         if (!matches) return [ ];
 
-        return [ matches[1], matches[2] || "*" ];
+        return [ matches[1], func(matches[1], matches[2] || "*") ];
     }));
 }
 
 function WorkspaceSteps() {
     this.Given(/^a Workspace with:$/, populateWorkspaceWithPackages);
-    this.When(/the workspace packages are streamed/, streamWorkspacePackages);
+    this.When(/^the workspace packages are streamed$/, streamWorkspacePackages);
     this.Then(/^the order of the packages received is "([^"]*)"$/, assertStreamedPackageOrder);
-    this.Then(/a circular dependency error is reported/, assertCircularDependency)
+    this.Then(/^a circular dependency error is reported$/, assertCircularDependency);
+    this.Then(/^(?:package|packages) "([^"]*)" comes before all others$/, assertPackagesComesBeforeAllOthers);
+    this.Then(/^(?:package|packages) "([^"]*)" comes before "([^"]*)"$/, assertPackagesComesBeforeOthers);
 }
 
 export = WorkspaceSteps;
