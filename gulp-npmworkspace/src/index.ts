@@ -1,3 +1,3 @@
-export * from "./GulpServices/WorkspacePackages";
+export * from "./Plugins/WorkspacePackages";
 
 export * from "./typescript";
