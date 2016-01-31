@@ -53,7 +53,7 @@ export class Logger {
      * if not provided, is set in the global workspace plugin options.
      */
     public static verbose(message: string | Chalk.ChalkChain | WriteLogAction, file?: File): void {
-        let options: NpmWorkspacePluginOptions = file ? file["workspaceOptions"] : getWorkspacePluginOptions();
+        let options: NpmWorkspacePluginOptions = file ? (<any>file).workspaceOptions : getWorkspacePluginOptions();
 
         if (!options.verboseLogging) return;
 

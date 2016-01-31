@@ -4,7 +4,7 @@ import * as assert from "assert";
 import * as _ from "underscore";
 import * as gulp from "gulp";
 import * as through from "through2";
-import {workspacePackages} from "gulp-npmworkspace";
+import {workspacePackages, filter} from "gulp-npmworkspace";
 
 import {Workspace} from "./ContextProviders/Workspace";
 import {WorkspacePackage} from "./ContextProviders/WorkspacePackage";
@@ -34,6 +34,33 @@ async function streamWorkspacePackages() {
     let workspace: Workspace = this["workspace"];
 
     this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: false });
+}
+
+/**
+ * Streams the workspace packages in the current workspace and applies a filter that removes packages
+ * that don't have a given set of dependencies.
+ *
+ * @param dependencies A comma seperated string representing the names of the dependencies that should
+ * be applied in the filter.
+ */
+async function streamWorkspacePackagesWithDependencyFilter(dependencies: string) {
+    let workspace: Workspace = this["workspace"];
+
+    let requiredDependencies = toDependencyDictionary(dependencies);
+
+    this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: true })
+                                     .pipe(filter((packageDescriptor) => {
+                                         debugger;
+
+                                         for (let requiredDependency in requiredDependencies) {
+                                             if (!(packageDescriptor.dependencies && packageDescriptor.dependencies[requiredDependency])
+                                                 && !(packageDescriptor.devDependencies && packageDescriptor.devDependencies[requiredDependency])) {
+                                                     return false;
+                                                 }
+                                         }
+
+                                         return true;
+                                     }));
 }
 
 /**
@@ -172,7 +199,10 @@ function createDependencyDictionary<TValue>(csvList: string, func: (dependencyNa
 
 function WorkspaceSteps() {
     this.Given(/^a Workspace with:$/, populateWorkspaceWithPackages);
+
     this.When(/^the workspace packages are streamed$/, streamWorkspacePackages);
+    this.When(/^the workspace packages are streamed with a filter that returns packages dependant on "([^"]*)"$/, streamWorkspacePackagesWithDependencyFilter);
+
     this.Then(/^the order of the packages received is "([^"]*)"$/, assertStreamedPackageOrder);
     this.Then(/^a circular dependency error is reported$/, assertCircularDependency);
     this.Then(/^(?:package|packages) "([^"]*)" comes before all others$/, assertPackagesComesBeforeAllOthers);

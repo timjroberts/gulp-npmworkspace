@@ -1,9 +1,14 @@
+import * as path from "path"
 import * as _ from "underscore";
+
+import {PackageDescriptor} from "./PackageDescriptor";
 
 const argv = require("yargs")
     .alias("p", "package")
     .alias("v", "verbose")
     .argv;
+
+export const PLUGIN_NAME = (<PackageDescriptor>require(path.join(__dirname, "../../package.json"))).name;
 
 /**
  * A type of increment to apply when bumping up version numbers.

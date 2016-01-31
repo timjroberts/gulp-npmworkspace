@@ -1,5 +1,7 @@
 import * as path from "path"
 
+import {PackageDescriptor} from "../PackageDescriptor";
+
 interface ArgumentOptions {
     package?: string;
 

@@ -2,6 +2,7 @@ import {DepGraph} from "dependency-graph";
 import File = require("vinyl");
 
 import {getPackageName} from "../../utilities/CommandLine";
+import {PackageDescriptor} from "../../PackageDescriptor";
 
 /**
  * Collects workspace packages and the dependencies between them.

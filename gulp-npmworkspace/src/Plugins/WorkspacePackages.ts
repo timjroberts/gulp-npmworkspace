@@ -11,6 +11,7 @@ import {getPackageName, pluginName} from "../utilities/CommandLine";
 import {TransformAction, TransformCallback, FlushAction, FlushCallback} from "./StreamFunctionTypes";
 import {PackageDependencyContext} from "./utilities/PackageDependencyContext";
 import {Logger} from "./utilities/Logging";
+import {PackageDescriptor} from "../PackageDescriptor";
 
 const LOCAL_GULP_WORKSPACE_FILENAME: string = "gulpfile.workspace.js";
 
@@ -98,6 +99,14 @@ function streamPackages(context: PackageDependencyContext, options: NpmWorkspace
             callback();
         }
         catch (error) {
+            if (error instanceof util.PluginError) {
+                if (options.enableLogging) {
+                    Logger.error(util.colors.red(`Unexpected error: ${error.message}`));
+                }
+
+                return callback(error);
+            }
+
             if (options.enableLogging) {
                 let packageNameRegExp = /(?:\:|->)\s((?:\w|-)*)\s?/g;
 
