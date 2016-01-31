@@ -48,3 +48,27 @@ Scenario: Layered dependency stack
     When the workspace packages are streamed
     Then package "package-a" comes before all others
      And packages "package-b, package-c" comes before "package-d"
+
+Scenario Outline: Allow named packages
+    Sometimes there will be a need to execute a workspace level task only for a named workspace package. For
+    example, compiling just the "current" workspace package. When streaming workspace packages, it should be
+    possible to provide a name of the package that we want to focus streaming on, but we must always stream
+    that named package's dependencies too.
+
+    This isn't the same as filtering which applys a filter function with no regard to the dependency order of
+    the packages in the workspace.
+
+    Given a Workspace with:
+        | package   | dependencies |
+        | package-a |              |
+        | package-b | package-a    |
+        | package-c | package-b    |
+        | package-d | package-c    |
+        | package-e | package-d    |
+    When the workspace packages are streamed for "<packageName>" with the onlyNamedPackage option set to <onlyNamedPackage>
+    Then the order of the packages received is "<expectedPackageOrder>"
+
+    Examples:
+        | packageName | onlyNamedPackage | expectedPackageOrder                       |
+        | package-d   | false            | package-a, package-b, package-c, package-d |
+        | package-d   | true             | package-a, package-b, package-c, package-d |

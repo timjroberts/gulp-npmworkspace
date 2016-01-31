@@ -82,7 +82,7 @@ function collectPackages(context: PackageDependencyContext): TransformAction {
 function streamPackages(context: PackageDependencyContext, options: NpmWorkspacePluginOptions): FlushAction {
     return function (callback: FlushCallback) {
         try {
-            context.writeToStream(this, (file: File) => {
+            context.writeToStream(this, options.package, (file: File) => {
                 let workspaceFilePath = path.join(path.parse(file.path).dir, LOCAL_GULP_WORKSPACE_FILENAME);
 
                 // Add a getWorkspace() function the streamed file that returns the 'gulp.workspace.js' file

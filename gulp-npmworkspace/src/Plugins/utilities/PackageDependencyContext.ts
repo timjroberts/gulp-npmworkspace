@@ -37,10 +37,11 @@ export class PackageDependencyContext {
      * Writes the current collection of packages to a stream in dependency order.
      *
      * @param targetStream The stream that will be written.
+     * @param startingPackage The name of the workspace package to focus streaming on.
      * @param transformFunc An optional function that can transform the 'Gulp' file before it is written to the
      * stream.
      */
-    public writeToStream(targetStream: NodeJS.ReadWriteStream, transformFunc?: (file: File) => File): void {
+    public writeToStream(targetStream: NodeJS.ReadWriteStream, startingPackage?: string, transformFunc?: (file: File) => File): void {
         let collectFunc = function(packageName: string) {
             var packageFile: File = this._packageMap[packageName];
 
@@ -51,11 +52,9 @@ export class PackageDependencyContext {
             }
         }
 
-        let requiredPackageName = getPackageName();
-
-        if (requiredPackageName) {
-            this._packageGraph.dependenciesOf(requiredPackageName).forEach(collectFunc, this);
-            collectFunc.call(this, requiredPackageName);
+        if (startingPackage) {
+            this._packageGraph.dependenciesOf(startingPackage).forEach(collectFunc, this);
+            collectFunc.call(this, startingPackage);
 
         }
         else {

@@ -48,7 +48,7 @@ async function streamWorkspacePackagesWithDependencyFilter(dependencies: string)
 
     let requiredDependencies = toDependencyDictionary(dependencies);
 
-    this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: true })
+    this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: false })
                                      .pipe(filter((packageDescriptor) => {
                                          debugger;
 
@@ -61,6 +61,19 @@ async function streamWorkspacePackagesWithDependencyFilter(dependencies: string)
 
                                          return true;
                                      }));
+}
+
+/**
+ * Streams the workspace packages in the current workspace using the 'package' option.
+ *
+ * @param packageName The name of the package to supply as the 'package' option.
+ * @param onlyNamedPackage A stringified boolean that indicates whether only the named package should
+ * be streamed.
+ */
+async function streamWorkspacePackagesForNamedPackage(packageName: string, onlyNamedPackage: string) {
+    let workspace: Workspace = this["workspace"];
+
+    this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: true, package: packageName, onlyNamedPackage: onlyNamedPackage === "true" });
 }
 
 /**
@@ -202,6 +215,7 @@ function WorkspaceSteps() {
 
     this.When(/^the workspace packages are streamed$/, streamWorkspacePackages);
     this.When(/^the workspace packages are streamed with a filter that returns packages dependant on "([^"]*)"$/, streamWorkspacePackagesWithDependencyFilter);
+    this.When(/^the workspace packages are streamed for "([^"]*)" with the onlyNamedPackage option set to (true|false)$/, streamWorkspacePackagesForNamedPackage);
 
     this.Then(/^the order of the packages received is "([^"]*)"$/, assertStreamedPackageOrder);
     this.Then(/^a circular dependency error is reported$/, assertCircularDependency);
