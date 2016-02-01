@@ -45,7 +45,7 @@ export interface NpmInstallOptions {
 }
 
 /**
- * Creates a binding for the [[installPackage]] plugin.
+ * Creates a binding for the [[npmInstall]] plugin.
  *
  * @returns An [[NpmPluginBinding<>]] object.
  */
