@@ -27,6 +27,21 @@ export class Workspace implements ITemporaryWorkspace {
     }
 
     /**
+     * Retrieves a named workspace package.
+     */
+    public getWorkspacePackage(packageName: string): WorkspacePackage {
+        let workspacePackage = this._workspacePackages.get(packageName);
+
+        if (!workspacePackage) return undefined;
+
+        let workspacePackageCopy = new WorkspacePackage(workspacePackage);
+
+        workspacePackageCopy.path = path.join(this.path, workspacePackageCopy.path);
+
+        return workspacePackageCopy;
+    }
+
+    /**
      * Retrieves a change tracker that can be used to create and update workspace packages in the
      * current workspace.
      *

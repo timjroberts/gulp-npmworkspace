@@ -19,7 +19,7 @@ export class Logger {
      * @param file An optional [[File]] object that was the cause of the message being logged.
      */
     public static error(message: string | Chalk.ChalkChain, file?: File): void {
-        util.log(message);
+        Logger.logInternal(message, file);
     }
 
     /**
@@ -29,7 +29,7 @@ export class Logger {
      * @param file An optional [[File]] object that was the cause of the message being logged.
      */
     public static warn(message: string | Chalk.ChalkChain, file?: File): void {
-        util.log(message);
+        Logger.logInternal(message, file);
     }
 
     /**
@@ -39,7 +39,7 @@ export class Logger {
      * @param file An optional [[File]] object that was the cause of the message being logged.
      */
     public static info(message: string | Chalk.ChalkChain, file?: File): void {
-        util.log(message);
+        Logger.logInternal(message, file);
     }
 
     /**
@@ -55,11 +55,19 @@ export class Logger {
     public static verbose(message: string | Chalk.ChalkChain | WriteLogAction, file?: File): void {
         let options: NpmWorkspacePluginOptions = file ? (<any>file).workspaceOptions : getWorkspacePluginOptions();
 
-        if (!options.verboseLogging) return;
+        if (!options.enableLogging || !options.verboseLogging) return;
 
         if (typeof message === "function") {
             return (<WriteLogAction>message)(util.log);
         }
+
+        util.log(message);
+    }
+
+    private static logInternal(message: string | Chalk.ChalkChain, file?: File): void {
+        let options: NpmWorkspacePluginOptions = file ? (<any>file).workspaceOptions : getWorkspacePluginOptions();
+
+        if (!options.enableLogging) return;
 
         util.log(message);
     }

@@ -4,7 +4,9 @@ import * as assert from "assert";
 import * as _ from "underscore";
 import * as gulp from "gulp";
 import * as through from "through2";
-import {workspacePackages, filter} from "gulp-npmworkspace";
+import * as fs from "fs";
+import * as path from "path";
+import {workspacePackages, filter, npmInstall} from "gulp-npmworkspace";
 
 import {Workspace} from "./ContextProviders/Workspace";
 import {WorkspacePackage} from "./ContextProviders/WorkspacePackage";
@@ -37,6 +39,16 @@ async function streamWorkspacePackages() {
 }
 
 /**
+ * Streams and installs the workspace packages in the current workspace.
+ */
+async function installWorkspacePackages() {
+    let workspace: Workspace = this["workspace"];
+
+    this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: false })
+                                     .pipe(npmInstall());
+}
+
+/**
  * Streams the workspace packages in the current workspace and applies a filter that removes packages
  * that don't have a given set of dependencies.
  *
@@ -50,8 +62,6 @@ async function streamWorkspacePackagesWithDependencyFilter(dependencies: string)
 
     this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: false })
                                      .pipe(filter((packageDescriptor) => {
-                                         debugger;
-
                                          for (let requiredDependency in requiredDependencies) {
                                              if (!(packageDescriptor.dependencies && packageDescriptor.dependencies[requiredDependency])
                                                  && !(packageDescriptor.devDependencies && packageDescriptor.devDependencies[requiredDependency])) {
@@ -145,6 +155,37 @@ async function assertPackagesComesBeforeOthers(expectedPackages: string, otherPa
     assertPackageOrder(expectedPackageIndexes, collectedPackageIndexes);
 }
 
+/**
+ * Ensures that a package has a given dependency installed as a node_module and that it is either a
+ * symbolic link or a folder.
+ *
+ * @param packageName The name of the package that can be found in the current workspace.
+ * @param expectedDependencyName The name of the expected dependency.
+ * @param expectedType The type of the expected dependency.
+ */
+async function assertDependencyIsInstalled(packageName: string, expectedDependencyName: string, expectedType: string) {
+    const SYMLINK_TYPE: string = "symbolic link";
+    const FOLDER_TYPE: string = "folder";
+
+    let workspace: Workspace = this["workspace"];
+
+    await pullPackages(this);
+
+    let workspacePackage = workspace.getWorkspacePackage(packageName);
+
+    assert.notEqual(workspacePackage, undefined, `Could not find package '${packageName}' in the workspace.`);
+    assert.notEqual(workspacePackage.dependencies[expectedDependencyName], undefined, `Package '${packageName}' does not list '${expectedDependencyName}' in its 'package.json' file.`);
+
+    let stats = fs.lstatSync(path.join(workspacePackage.path, "node_modules", expectedDependencyName));
+
+    if (expectedType === SYMLINK_TYPE) {
+        assert.equal(stats.isSymbolicLink(), true, `Expected '${expectedDependencyName}' to be a symbolic link.`);
+    }
+    else {
+        assert.equal(stats.isDirectory(), true, `Expected '${expectedDependencyName}' to be a folder.`);
+    }
+}
+
 function assertPackageOrder(expectedPackages: Object, collectedPackages: Object): void {
     for (let expectedPackage in expectedPackages) {
         let expectedPackageIndex = expectedPackages[expectedPackage];
@@ -216,11 +257,13 @@ function WorkspaceSteps() {
     this.When(/^the workspace packages are streamed$/, streamWorkspacePackages);
     this.When(/^the workspace packages are streamed with a filter that returns packages dependant on "([^"]*)"$/, streamWorkspacePackagesWithDependencyFilter);
     this.When(/^the workspace packages are streamed for "([^"]*)" with the onlyNamedPackage option set to (true|false)$/, streamWorkspacePackagesForNamedPackage);
+    this.When(/^the workspace packages are installed/, installWorkspacePackages);
 
     this.Then(/^the order of the packages received is "([^"]*)"$/, assertStreamedPackageOrder);
     this.Then(/^a circular dependency error is reported$/, assertCircularDependency);
     this.Then(/^(?:package|packages) "([^"]*)" comes before all others$/, assertPackagesComesBeforeAllOthers);
     this.Then(/^(?:package|packages) "([^"]*)" comes before "([^"]*)"$/, assertPackagesComesBeforeOthers);
+    this.Then(/package "([^"]*)" has a node_module named "([^"]*)" that is a (folder|symbolic link)/, assertDependencyIsInstalled);
 }
 
 export = WorkspaceSteps;

@@ -1,4 +1,4 @@
-import {packageDescriptorPlugin} from "./utilities/PackageDescriptorPlugin";
+import {packageDescriptorPlugin, MappedPackage} from "./utilities/PackageDescriptorPlugin";
 import {PackageDescriptor} from "../PackageDescriptor";
 
 /**
@@ -9,18 +9,17 @@ import {PackageDescriptor} from "../PackageDescriptor";
  */
 export type FilterFunction<T> = (packageDescriptor: PackageDescriptor, packagePath: string) => T;
 
-
 /**
  * The [[filter]] plugin implementation.
  *
  * @param packageDescriptor The package descriptor representing the 'package.json' file.
  * @param packagePath The path to the package.
+ * @param packageMap A dictionary of packages that have been processed by the current plugin.
  * @filterFunc The [[FilterFunction<>]] that was provided by the caller.
  *
  * @returns A boolean value returned from the filter function.
- *
  */
-function filterPackage(packageDescriptor: PackageDescriptor, packagePath: string, filterFunc: FilterFunction<boolean>): boolean {
+function filterPackage(packageDescriptor: PackageDescriptor, packagePath: string, packageMap: IDictionary<MappedPackage>, filterFunc: FilterFunction<boolean>): boolean {
     return filterFunc(packageDescriptor, packagePath);
 }
 

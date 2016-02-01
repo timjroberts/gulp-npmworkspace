@@ -4,17 +4,42 @@ import * as util from "gulp-util";
 import * as through from "through2";
 import File = require("vinyl");
 
-import {PLUGIN_NAME} from "../../NpmWorkspacePluginOptions";
+import {PLUGIN_NAME, NpmWorkspacePluginOptions} from "../../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../../PackageDescriptor";
 import {TransformCallback} from "../StreamFunctionTypes";
 import {Logger} from "./Logging";
 import {PluginError} from "./PluginError";
+
+export interface MappedPackage {
+    packageDescriptor: PackageDescriptor;
+
+    packagePath: string;
+}
+
+/**
+ * A function that represents a Gulp plugin implementation.
+ *
+ * @param packageDescriptor The package descriptor representing the 'package.json' file.
+ * @param packagePath The path to the package.
+ * @param packageMap A dictionary of packages that have been processed by the Gulp plugin.
+ */
+export type PluginFunction = (packageDescriptor: PackageDescriptor, packagePath: string, packageMap: IDictionary<MappedPackage>, ...args: any[]) => void | boolean;
+
+/**
+ * A fuction that creates a binding for executing [[PluginFunction]] functions. Objects returned
+ * by [[PluginFunctionBindingFunction]] are used as 'this' when executing the associated
+ * [[PluginFunction]] functions.
+ */
+export type PluginFunctionBindingFunction = (...args: any[]) => any;
 
 /**
  * A function decorator that wraps a supplied function and returns a function that can
  * be used as a Gulp plugin.
  *
  * @param pluginFunc A function that represents the plugin implementation.
+ * @param pluginFuncBindingFunc An optional function that creates a binding for executing the
+ * supplied plugin function. The object returned from this function will be used as 'this' when
+ * executing the plugin function.
  *
  * @returns A function that accepts and returns a stream of 'package.json' files.
  *
@@ -25,10 +50,12 @@ import {PluginError} from "./PluginError";
  * When throwing errors, use of [[Error]] will halt the stream. Using [[PluginError]], the plugin
  * function can indicate whether the stream should continue or not.
  */
-export function packageDescriptorPlugin(pluginFunc: (packageDescriptor: PackageDescriptor, packagePath: string, ...args: any[]) => void | boolean): (...args: any[]) => NodeJS.ReadWriteStream {
+export function packageDescriptorPlugin(pluginFunc: PluginFunction, pluginFuncBindingFunc?: PluginFunctionBindingFunction): (...args: any[]) => NodeJS.ReadWriteStream {
     return function (...args: any[]): NodeJS.ReadWriteStream {
+        let pluginBinding = pluginFuncBindingFunc ? pluginFuncBindingFunc(...args) : undefined;
+        let packageMap: IDictionary<MappedPackage> = { };
+
         return through.obj(function (file: File, encoding: string, callback: TransformCallback) {
-            debugger;
             if (file.isStream()) return callback(new util.PluginError(PLUGIN_NAME, "Streams are not supported."));
 
             let pathInfo = path.parse(file.path);
@@ -37,8 +64,19 @@ export function packageDescriptorPlugin(pluginFunc: (packageDescriptor: PackageD
 
             let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
+            packageMap[packageDescriptor.name] = {
+                packageDescriptor: packageDescriptor,
+                packagePath: pathInfo.dir
+            }
+
+            let options: NpmWorkspacePluginOptions = file["workspaceOptions"];
+
+            if (options.package && (options.onlyNamedPackage && options.package !== packageDescriptor.name)) {
+                return callback(null, file);
+            }
+
             try {
-                let result: void | boolean = pluginFunc(packageDescriptor, pathInfo.dir, ...args);
+                let result: void | boolean = pluginFunc.apply(pluginBinding, [ packageDescriptor, pathInfo.dir, packageMap ].concat(args))
 
                 if (result === undefined || result === true) {
                     callback(null, file);
