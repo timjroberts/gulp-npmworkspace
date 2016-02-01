@@ -50,7 +50,7 @@ export interface NpmWorkspacePluginOptions {
     verboseLogging?: boolean;
 
     /**
-     * A [[VersionBump]] value that determine how version numbers are bumped up
+     * A [[VersionBump]] value that determines how version numbers are bumped up
      * during a publish.
      */
     versionBump?: VersionBump;

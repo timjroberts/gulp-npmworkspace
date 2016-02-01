@@ -7,7 +7,7 @@ import * as semver from "semver";
 
 import {packageDescriptorPlugin, MappedPackage} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
-import {NpmWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
+import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../PackageDescriptor";
 import {ConditionableAction, SyncAction} from "./ConditionableAction";
 import {Logger} from "./utilities/Logging";
@@ -41,7 +41,7 @@ export interface NpmInstallOptions {
     /**
      * A combination of a condition and an action that will be executed once the package has been installed.
      */
-    postInstallActions?: Array<ConditionableAction>;
+    postInstallActions?: Array<ConditionableAction<SyncAction>>;
 }
 
 /**
@@ -50,7 +50,7 @@ export interface NpmInstallOptions {
  * @returns An [[NpmPluginBinding<>]] object.
  */
 function npmInstallPackageBinding(options?: NpmInstallOptions & NpmWorkspacePluginOptions): NpmPluginBinding<NpmInstallOptions & NpmWorkspacePluginOptions> {
-    return new NpmPluginBinding<NpmInstallOptions & NpmWorkspacePluginOptions>(_.defaults(options || { }, { continueOnError: true, minimizeSizeOnDisk: true, registryMap: { } }));
+    return new NpmPluginBinding<NpmInstallOptions & NpmWorkspacePluginOptions>(_.extend(getWorkspacePluginOptions(options), { continueOnError: true, minimizeSizeOnDisk: true, registryMap: { } }, options));
 }
 
 /**
@@ -201,6 +201,6 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
  *
  * @param options A optional hash of [[NpmInstallOptions]].
  *
- * @returns A stream that contains the filtered 'package.json' files.
+ * @returns A stream that contains the 'package.json' files.
  */
 export var npmInstall: (options?: NpmInstallOptions & NpmWorkspacePluginOptions) => NodeJS.ReadWriteStream = packageDescriptorPlugin(npmInstallPackage, npmInstallPackageBinding);

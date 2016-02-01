@@ -1,5 +1,9 @@
 import {PackageDescriptor} from "../PackageDescriptor";
 
+export interface AsyncAction {
+    (packageDescriptor: PackageDescriptor, packagePath: string, callback: (error?: Error) => void): void;
+}
+
 export interface SyncAction {
     (packageDescriptor: PackageDescriptor, packagePath: string): void;
 }
@@ -7,7 +11,7 @@ export interface SyncAction {
 /**
  * An action that it only executed for a given condition.
  */
-export interface ConditionableAction {
+export interface ConditionableAction<TAction> {
     /**
      * An optional condition function that if returns true will apply the associated action. If no condition is
      * supplied, then the action is always applied.
@@ -17,5 +21,5 @@ export interface ConditionableAction {
     /**
      * The action to execute.
      */
-    action: SyncAction;
+    action: TAction;
 }

@@ -6,7 +6,7 @@ import * as gulp from "gulp";
 import * as through from "through2";
 import * as fs from "fs";
 import * as path from "path";
-import {workspacePackages, filter, npmInstall} from "gulp-npmworkspace";
+import {workspacePackages, filter, npmInstall, npmUninstall} from "gulp-npmworkspace";
 
 import {Workspace} from "./ContextProviders/Workspace";
 import {WorkspacePackage} from "./ContextProviders/WorkspacePackage";
@@ -44,8 +44,22 @@ async function streamWorkspacePackages() {
 async function installWorkspacePackages() {
     let workspace: Workspace = this["workspace"];
 
+    this["pulledWorkspacePackages"] = undefined;
+
     this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: false })
                                      .pipe(npmInstall());
+}
+
+/**
+ * Streams and uninstall the workspace packages in the current workspace.
+ */
+async function uninstallWorkspacePackages() {
+    let workspace: Workspace = this["workspace"];
+
+    this["pulledWorkspacePackages"] = undefined;
+
+    this["workspacePackageStream"] = workspacePackages({ cwd: workspace.path, enableLogging: false })
+                                     .pipe(npmUninstall());
 }
 
 /**
@@ -186,6 +200,21 @@ async function assertDependencyIsInstalled(packageName: string, expectedDependen
     }
 }
 
+/**
+ * Ensures that a package has been uninstalled and that it has no installed dependencies.
+ *
+ * @param packageName THe name of the package that can be found in the current workspace.
+ */
+async function assertPackageIsUninstalled(packageName: string) {
+    let workspace: Workspace = this["workspace"];
+
+    await pullPackages(this);
+
+    let workspacePackage = workspace.getWorkspacePackage(packageName);
+
+    assert.equal(fs.existsSync(path.join(workspacePackage.path, "node_modules")), false, `Expected package '${packageName}' to have no installed dependencies.`);
+}
+
 function assertPackageOrder(expectedPackages: Object, collectedPackages: Object): void {
     for (let expectedPackage in expectedPackages) {
         let expectedPackageIndex = expectedPackages[expectedPackage];
@@ -258,12 +287,14 @@ function WorkspaceSteps() {
     this.When(/^the workspace packages are streamed with a filter that returns packages dependant on "([^"]*)"$/, streamWorkspacePackagesWithDependencyFilter);
     this.When(/^the workspace packages are streamed for "([^"]*)" with the onlyNamedPackage option set to (true|false)$/, streamWorkspacePackagesForNamedPackage);
     this.When(/^the workspace packages are installed/, installWorkspacePackages);
+    this.When(/the workspace packages are uninstalled/, uninstallWorkspacePackages);
 
     this.Then(/^the order of the packages received is "([^"]*)"$/, assertStreamedPackageOrder);
     this.Then(/^a circular dependency error is reported$/, assertCircularDependency);
     this.Then(/^(?:package|packages) "([^"]*)" comes before all others$/, assertPackagesComesBeforeAllOthers);
     this.Then(/^(?:package|packages) "([^"]*)" comes before "([^"]*)"$/, assertPackagesComesBeforeOthers);
     this.Then(/package "([^"]*)" has a node_module named "([^"]*)" that is a (folder|symbolic link)/, assertDependencyIsInstalled);
+    this.Then(/package "([^"]*)" has no node_modules/, assertPackageIsUninstalled);
 }
 
 export = WorkspaceSteps;

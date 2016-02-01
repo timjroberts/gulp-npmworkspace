@@ -1,10 +1,11 @@
 import * as rimraf from "rimraf";
 import * as path from "path";
 import * as util from "gulp-util";
+import * as _ from "underscore";
 
 import {packageDescriptorPlugin} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
-import {NpmWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
+import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../PackageDescriptor";
 import {ConditionableAction, SyncAction} from "./ConditionableAction";
 import {Logger} from "./utilities/Logging";
@@ -24,7 +25,7 @@ export interface NpmUninstallOptions {
     /**
      * A combination of a condition and an action that will be executed once the package has been installed.
      */
-    postUninstallActions?: Array<ConditionableAction>;
+    postUninstallActions?: Array<ConditionableAction<SyncAction>>;
 }
 
 /**
@@ -33,7 +34,7 @@ export interface NpmUninstallOptions {
  * @returns An [[NpmPluginBinding<>]] object.
  */
 function npmUninstallPackageBinding(options?: NpmUninstallOptions & NpmWorkspacePluginOptions): NpmPluginBinding<NpmUninstallOptions & NpmWorkspacePluginOptions> {
-    return new NpmPluginBinding<NpmUninstallOptions & NpmWorkspacePluginOptions>(_.defaults(options || { }, { continueOnError: true }));
+    return new NpmPluginBinding<NpmUninstallOptions & NpmWorkspacePluginOptions>(_.extend(getWorkspacePluginOptions(options), { continueOnError: true }, options));
 }
 
 /**
@@ -71,4 +72,12 @@ function npmUninstallPackage(packageDescriptor: PackageDescriptor, packagePath: 
     }
 }
 
-export var npmUninstall: () => NodeJS.ReadWriteStream = packageDescriptorPlugin(npmUninstallPackage);
+/**
+ * A Gulp plugin that accepts and returns a stream of 'package.json' files and uninstalls the dependant packages for each one.
+ * Symbolic links are created for each dependency if it represents another package present in the workspace.
+ *
+ * @param options A optional hash of [[NpmUninstallOptions]].
+ *
+ * @returns A stream that contains the 'package.json' files.
+ */
+export var npmUninstall: () => NodeJS.ReadWriteStream = packageDescriptorPlugin(npmUninstallPackage, npmUninstallPackageBinding);

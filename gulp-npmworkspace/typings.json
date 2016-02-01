@@ -16,6 +16,7 @@
         "underscore": "github:DefinitelyTyped/DefinitelyTyped/underscore/underscore.d.ts",
         "glob": "github:DefinitelyTyped/DefinitelyTyped/glob/glob.d.ts",
         "minimatch": "github:DefinitelyTyped/DefinitelyTyped/minimatch/minimatch.d.ts",
+        "es6-promise": "github:DefinitelyTyped/DefinitelyTyped/es6-promise/es6-promise.d.ts",
         "dependency-graph": "file:../workspace-typings/dependency-graph.d.ts",
         "jsonfile": "file:../workspace-typings/jsonfile.d.ts",
         "tmp": "file:../workspace-typings/tmp.d.ts"

@@ -2,6 +2,7 @@ import * as gulp from "gulp";
 import * as path from "path";
 import * as util from "gulp-util";
 import * as through from "through2";
+import {Promise} from "es6-promise";
 import File = require("vinyl");
 
 import {PLUGIN_NAME, NpmWorkspacePluginOptions} from "../../NpmWorkspacePluginOptions";
@@ -23,7 +24,7 @@ export interface MappedPackage {
  * @param packagePath The path to the package.
  * @param packageMap A dictionary of packages that have been processed by the Gulp plugin.
  */
-export type PluginFunction = (packageDescriptor: PackageDescriptor, packagePath: string, packageMap: IDictionary<MappedPackage>, ...args: any[]) => void | boolean;
+export type PluginFunction = (packageDescriptor: PackageDescriptor, packagePath: string, packageMap: IDictionary<MappedPackage>, ...args: any[]) => void | boolean | Promise<void | boolean>;
 
 /**
  * A fuction that creates a binding for executing [[PluginFunction]] functions. Objects returned
@@ -43,7 +44,7 @@ export type PluginFunctionBindingFunction = (...args: any[]) => any;
  *
  * @returns A function that accepts and returns a stream of 'package.json' files.
  *
- * Plugin function can optionally return a boolean value to indicate whether the current
+ * pluginFunc can optionally return a boolean value to indicate whether the current
  * 'package.json' file should continue within the stream. Returning undefined is the same as
  * returning true.
  *
@@ -76,13 +77,28 @@ export function packageDescriptorPlugin(pluginFunc: PluginFunction, pluginFuncBi
             }
 
             try {
-                let result: void | boolean = pluginFunc.apply(pluginBinding, [ packageDescriptor, pathInfo.dir, packageMap ].concat(args))
+                let result: any = pluginFunc.apply(pluginBinding, [ packageDescriptor, pathInfo.dir, packageMap ].concat(args))
 
-                if (result === undefined || result === true) {
-                    callback(null, file);
+                if (result instanceof Promise) {
+                    (<Promise<void | boolean>>result).then((promiseResult: void | boolean) => {
+                        if (promiseResult === undefined || promiseResult === true) {
+                            callback(null, file);
+                        }
+                        else {
+                            callback();
+                        }
+                    })
+                    .catch((error) => {
+                        throw error;
+                    });
                 }
                 else {
-                    callback();
+                    if (result === undefined || result === true) {
+                        callback(null, file);
+                    }
+                    else {
+                        callback();
+                    }
                 }
             }
             catch (error) {
