@@ -65,16 +65,21 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
 
                     if (runPrePublishAction) {
                         (<AsyncAction>prePublishAction.action)(packageDescriptor, packagePath, (error?: Error) => {
-                            if (error) reject(error);
+                            if (error) return reject(error);
 
                             resolve();
                         });
+                    }
+                    else {
+                        resolve();
                     }
                 }));
 
                 Promise.all(prePublishActionPromises)
                        .then(() => { resolve(); })
-                       .catch(reject);
+                       .catch((error) => {
+                           throw error;
+                       });
             }
         }
         catch (error) {

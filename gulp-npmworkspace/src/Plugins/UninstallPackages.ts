@@ -7,7 +7,7 @@ import {packageDescriptorPlugin} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
 import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../PackageDescriptor";
-import {ConditionableAction, SyncAction} from "./ConditionableAction";
+import {ConditionableAction, AsyncAction} from "./ConditionableAction";
 import {Logger} from "./utilities/Logging";
 import {NpmPluginBinding} from "./utilities/NpmPluginBinding";
 
@@ -25,7 +25,7 @@ export interface NpmUninstallOptions {
     /**
      * A combination of a condition and an action that will be executed once the package has been installed.
      */
-    postUninstallActions?: Array<ConditionableAction<SyncAction>>;
+    postUninstallActions?: Array<ConditionableAction<AsyncAction>>;
 }
 
 /**
@@ -43,33 +43,51 @@ function npmUninstallPackageBinding(options?: NpmUninstallOptions & NpmWorkspace
  * @param packageDescriptor The package descriptor representing the 'package.json' file.
  * @param packagePath The path to the package.
  */
-function npmUninstallPackage(packageDescriptor: PackageDescriptor, packagePath: string) {
+function npmUninstallPackage(packageDescriptor: PackageDescriptor, packagePath: string): Promise<void> {
     let pluginBinding: NpmPluginBinding<NpmUninstallOptions & NpmWorkspacePluginOptions> = this;
 
-    Logger.info(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+    return new Promise<void>((resolve, reject) => {
+        Logger.info(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-    try {
-        rimraf.sync(path.resolve(packagePath, "node_modules"));
+        try {
+            rimraf.sync(path.resolve(packagePath, "node_modules"));
 
-        if (pluginBinding.options.postUninstallActions) {
-            Logger.info(`Running post-uninstall action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+            if (pluginBinding.options.postUninstallActions) {
+                Logger.info(`Running post-uninstall action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-            pluginBinding.options.postUninstallActions.forEach((postUninstallAction) => {
-                let runPostAction = postUninstallAction.condition
-                                    ? postUninstallAction.condition(packageDescriptor, packagePath)
-                                    : true;
+                let postUninstallActionPromises = pluginBinding.options.postUninstallActions.map((postUninstallAction) => new Promise<void>((resolve, reject) => {
+                    let runPostAction = postUninstallAction.condition
+                                        ? postUninstallAction.condition(packageDescriptor, packagePath)
+                                        : true;
 
-                if (runPostAction) {
-                    (<SyncAction>postUninstallAction.action)(packageDescriptor, packagePath);
-                }
-            });
+                    if (runPostAction) {
+                        (<AsyncAction>postUninstallAction.action)(packageDescriptor, packagePath, (error?: Error) => {
+                            if (error) return reject(error);
+
+                            resolve();
+                        });
+                    }
+                    else {
+                        resolve();
+                    }
+                }));
+
+                Promise.all(postUninstallActionPromises)
+                       .then(() => { resolve(); })
+                       .catch((error) => {
+                           throw error;
+                       });
+            }
+            else {
+                resolve();
+            }
         }
-    }
-    catch (error) {
-        throw new PluginError("Error uninstalling a workspace package",
-                              `Error uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}': \n ${error.message}`,
-                              { continue: pluginBinding.options.continueOnError });
-    }
+        catch (error) {
+            reject(new PluginError("Error uninstalling a workspace package",
+                                   `Error uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}': \n ${error.message}`,
+                                   { continue: pluginBinding.options.continueOnError }));
+        }
+    });
 }
 
 /**
