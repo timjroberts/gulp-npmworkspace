@@ -101,7 +101,7 @@ export class NpmPluginBinding<TOptions> {
      * @param packagePath The folder in which to execute the npm command.
      * @param cmdArgs An array of arguments to pass to npm.
      */
-    private shellExecuteNpm(packagePath: string, cmdArgs: Array<string>): void {
+    public shellExecuteNpm(packagePath: string, cmdArgs: Array<string>): void {
         var result = childProcess.spawnSync(process.platform === "win32" ? "npm.cmd" : "npm", cmdArgs, { cwd: packagePath });
 
         if (result.status !== 0) {

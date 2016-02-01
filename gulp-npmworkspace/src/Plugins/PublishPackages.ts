@@ -1,11 +1,13 @@
 import * as util from "gulp-util";
 import {Promise} from "es6-promise";
+import * as semver from "semver";
+import * as jsonFile from "jsonfile";
 
 import {ConditionableAction, AsyncAction} from "./ConditionableAction";
 import {NpmPluginBinding} from "./utilities/NpmPluginBinding";
 import {packageDescriptorPlugin} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
-import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
+import {NpmWorkspacePluginOptions, VersionBump, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../PackageDescriptor";
 import {Logger} from "./utilities/Logging";
 
@@ -43,6 +45,40 @@ function npmPublishPackageBinding(options?: NpmPublishOptions & NpmWorkspacePlug
 }
 
 /**
+ * Bumps the version of the given package descriptor and then saves the result to disk.
+ *
+ * @param packageDescriptor The package descriptor representing the 'package.json' file.
+ * @param packagePath The path to the package.
+ * @param versionBump The string representation of a version or a [[VersionBump]] value.
+ *
+ * @returns The modified package descriptor.
+ */
+function bumpVersion(packageDescriptor: PackageDescriptor, packagePath: string, versionBump: string | VersionBump): PackageDescriptor {
+    let versionIncrement = VersionBump[VersionBump[versionBump]];
+
+    let version: string;
+
+    if (versionIncrement) {
+        version = semver.inc(packageDescriptor["version"], versionIncrement);
+    }
+    else {
+        version = semver.valid(<string>versionBump);
+
+        if (!version) {
+            throw new Error(`'${versionBump}' is not a valid version.`);
+        }
+    }
+
+    Logger.verbose(`Bumping workspace package '${util.colors.cyan(packageDescriptor["name"])}' to version '${version}'`);
+
+    packageDescriptor["version"] = version;
+
+    jsonFile.writeFileSync(packagePath, packageDescriptor, { spaces: 4 });
+
+    return packageDescriptor;
+}
+
+/**
  * The [[npmPublish]] plugin implementation.
  *
  * @param packageDescriptor The package descriptor representing the 'package.json' file.
@@ -55,6 +91,22 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
 
     return new Promise<void>((resolve, reject) => {
         Logger.info(`Publishing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
+        let publishFunc = () => {
+            if (pluginBinding.options.shrinkWrap) {
+                pluginBinding.shellExecuteNpm(packagePath, [ "shrinkwrap" ]);
+            }
+
+            let versionBump = pluginBinding.options.versionBump;
+
+            if (versionBump) {
+                packageDescriptor = bumpVersion(packageDescriptor, packagePath, versionBump);
+            }
+
+            pluginBinding.shellExecuteNpm(packagePath, [ "publish" ]);
+
+            resolve();
+        };
 
         try {
             if (pluginBinding.options.prePublishActions) {
@@ -76,10 +128,13 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 }));
 
                 Promise.all(prePublishActionPromises)
-                       .then(() => { resolve(); })
+                       .then(() => { publishFunc(); })
                        .catch((error) => {
                            throw error;
                        });
+            }
+            else {
+                publishFunc();
             }
         }
         catch (error) {

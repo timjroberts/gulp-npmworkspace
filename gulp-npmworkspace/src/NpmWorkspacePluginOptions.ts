@@ -53,7 +53,7 @@ export interface NpmWorkspacePluginOptions {
      * A [[VersionBump]] value that determines how version numbers are bumped up
      * during a publish.
      */
-    versionBump?: VersionBump;
+    versionBump?: string | VersionBump;
 }
 
 /**
