@@ -1,5 +1,5 @@
 {
-    "workspace": true,
+    "isWorkspace": true,
     "name": "gulp-npmworkspace",
     "description": "Workspace for 'gulp-npmworkspace'.",
     "license": "BSD",
@@ -12,7 +12,7 @@
     },
     "devDependencies": {
         "gulp": "~3.9.0",
-        "gulp-npmworkspace": "~1.0.12",
+        "gulp-npmworkspace": "1.0.12",
         "cucumber": "~0.9.2",
         "through2": "~2.0.0",
         "rimraf": "^2.5.1",

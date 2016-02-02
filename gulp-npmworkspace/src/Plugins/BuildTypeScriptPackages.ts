@@ -12,7 +12,7 @@ import {packageDescriptorPlugin} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
 import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../PackageDescriptor";
-import {ConditionableAction, AsyncAction} from "./ConditionableAction";
+import {ConditionableAction, AsyncAction, executeAsynchronousActions} from "./ConditionableAction";
 import {Logger} from "./utilities/Logging";
 
 /**
@@ -184,31 +184,13 @@ function buildTypeScriptPackage(packageDescriptor: PackageDescriptor, packagePat
                     });
 
                     let postCompileActions: ConditionableAction<AsyncAction>[]
-                        = [].concat(pluginBinding.options.postCompileActions)
-                            .concat(file["getWorkspace"]()["postTypeScriptCompile"]);
+                        = _.union(pluginBinding.options.postCompileActions, file["getWorkspace"]()["postTypeScriptCompile"]);
 
-                    if (postCompileActions.length > 0) {
+                    if (postCompileActions && postCompileActions.length > 0) {
                         Logger.verbose(`Running post-compile actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-                        let postCompileActionPromises = postCompileActions.map((postCompileAction) => new Promise<void>((resolve, reject) => {
-                            let runPostAction = postCompileAction.condition
-                                                ? postCompileAction.condition(packageDescriptor, packagePath)
-                                                : true;
-
-                            if (runPostAction) {
-                                (<AsyncAction>postCompileAction.action)(packageDescriptor, packagePath, (error?: Error) => {
-                                        if (error) return reject(error);
-
-                                        resolve();
-                                    });
-                            }
-                            else {
-                                resolve();
-                            }
-                        }));
-
-                        Promise.all(postCompileActions)
-                            .then(() => { resolve(); })
+                        executeAsynchronousActions(postCompileActions, packageDescriptor, packagePath)
+                            .then(resolve)
                             .catch((error) => {
                                 handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
                             });

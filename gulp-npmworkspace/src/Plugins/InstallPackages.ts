@@ -11,7 +11,7 @@ import {packageDescriptorPlugin, Package} from "./utilities/PackageDescriptorPlu
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
 import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../PackageDescriptor";
-import {ConditionableAction, AsyncAction} from "./ConditionableAction";
+import {ConditionableAction, AsyncAction, executeAsynchronousActions} from "./ConditionableAction";
 import {Logger} from "./utilities/Logging";
 import {NpmPluginBinding} from "./utilities/NpmPluginBinding";
 
@@ -177,34 +177,16 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
             pluginBinding.shellExecuteNpmInstall(packagePath, packageDependencies);
 
             let postInstallActions: ConditionableAction<AsyncAction>[]
-                = [].concat(pluginBinding.options.postInstallActions)
-                    .concat(file["getWorkspace"]()["postInstall"]);
+                = _.union(pluginBinding.options.postInstallActions, file["getWorkspace"]()["postInstall"]);
 
-            if (postInstallActions) {
+            if (postInstallActions && postInstallActions.length > 0) {
                 Logger.verbose(`Running post-install actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-                let postInstallActionPromises = postInstallActions.map((postInstallAction) => new Promise<void>((resolve, reject) => {
-                    let runPostAction = postInstallAction.condition
-                                        ? postInstallAction.condition(packageDescriptor, packagePath)
-                                        : true;
-
-                    if (runPostAction) {
-                        (<AsyncAction>postInstallAction.action)(packageDescriptor, packagePath, (error?: Error) => {
-                            if (error) return reject(error);
-
-                            resolve();
-                        });
-                    }
-                    else {
-                        resolve();
-                    }
-                }));
-
-                Promise.all(postInstallActionPromises)
-                       .then(() => { resolve(); })
-                       .catch((error) => {
-                           handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
-                       });
+                executeAsynchronousActions(postInstallActions, packageDescriptor, packagePath)
+                    .then(resolve)
+                    .catch((error) => {
+                        handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
+                    });
             }
             else {
                 resolve();

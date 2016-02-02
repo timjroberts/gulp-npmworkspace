@@ -1,10 +1,11 @@
 import * as util from "gulp-util";
 import {Promise} from "es6-promise";
 import * as semver from "semver";
+import * as _ from "underscore";
 import * as jsonFile from "jsonfile";
 import File = require("vinyl");
 
-import {ConditionableAction, AsyncAction} from "./ConditionableAction";
+import {ConditionableAction, AsyncAction, executeAsynchronousActions} from "./ConditionableAction";
 import {NpmPluginBinding} from "./utilities/NpmPluginBinding";
 import {packageDescriptorPlugin} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
@@ -111,32 +112,16 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
 
         try {
             let prePublishActions: ConditionableAction<AsyncAction>[]
-                = [].concat(pluginBinding.options.prePublishActions)
-                    .concat(file["getWorkspace"]()["prePublish"]);
+                = _.union(pluginBinding.options.prePublishActions, file["getWorkspace"]()["prePublish"]);
 
-            if (prePublishActions) {
-                let prePublishActionPromises = prePublishActions.map((prePublishAction) => new Promise<void>((resolve, reject) => {
-                    let runPrePublishAction = prePublishAction.condition
-                                              ? prePublishAction.condition(packageDescriptor, packagePath)
-                                              : true;
+            if (prePublishActions && prePublishActions.length > 0) {
+                Logger.verbose(`Running pre-publish actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-                    if (runPrePublishAction) {
-                        (<AsyncAction>prePublishAction.action)(packageDescriptor, packagePath, (error?: Error) => {
-                            if (error) return reject(error);
-
-                            resolve();
-                        });
-                    }
-                    else {
-                        resolve();
-                    }
-                }));
-
-                Promise.all(prePublishActionPromises)
-                       .then(() => { publishFunc(); })
-                       .catch((error) => {
-                           handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
-                       });
+                executeAsynchronousActions(prePublishActions, packageDescriptor, packagePath)
+                    .then(resolve)
+                    .catch((error) => {
+                        handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
+                    });
             }
             else {
                 publishFunc();

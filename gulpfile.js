@@ -9,20 +9,19 @@ var through = require("through2");
 
 
 gulp.task("install", function() {
-    var typingsPostInstaller = {
-        condition: function(packageDescriptor, packagePath) {
-            return fs.existsSync(path.join(packagePath, "typings.json"));
-        },
-        action: function(packagePath, packageDescriptor) {
-            typings.install({ cwd: packagePath }).then(function () {
+    var postInstallActions = [
+        workspace.postInstallActions.installTypings(),
+        {
+            action: function(packageDescriptor, packagePath, callback) {
                 rimraf.sync(path.join(packagePath, "./typings/**/browser*"));
-                rimraf.sync(path.join(packagePath, "./.typings"));
-            });
+
+                callback();
+            }
         }
-    };
+    ];
 
     return workspace.workspacePackages()
-        .pipe(workspace.npmInstall({ postInstall: typingsPostInstaller }));
+        .pipe(workspace.npmInstall({ postInstallActions: postInstallActions, verboseLogging: true }));
 });
 
 

@@ -11,7 +11,7 @@ const argv = require("yargs")
 /**
  * The 'gulp-npmworkspace' plugin name (useful for generating errors).
  */
-export const PLUGIN_NAME = (<PackageDescriptor>require(path.join(__dirname, "../../package.json"))).name;
+export const PLUGIN_NAME = (<PackageDescriptor>require(path.join(__dirname, "../package.json"))).name;
 
 /**
  * A type of increment to apply when bumping up version numbers during a publish.

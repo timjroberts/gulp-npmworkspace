@@ -8,7 +8,7 @@ import {packageDescriptorPlugin} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
 import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../PackageDescriptor";
-import {ConditionableAction, AsyncAction} from "./ConditionableAction";
+import {ConditionableAction, AsyncAction, executeAsynchronousActions} from "./ConditionableAction";
 import {Logger} from "./utilities/Logging";
 import {NpmPluginBinding} from "./utilities/NpmPluginBinding";
 
@@ -54,34 +54,16 @@ function npmUninstallPackage(packageDescriptor: PackageDescriptor, packagePath: 
             rimraf.sync(path.resolve(packagePath, "node_modules"));
 
             let postUninstallActions: ConditionableAction<AsyncAction>[]
-                = [].concat(pluginBinding.options.postUninstallActions)
-                    .concat(file["getWorkspace"]()["postUninstall"]);
+                = _.union(pluginBinding.options.postUninstallActions, file["getWorkspace"]()["postUninstall"]);
 
             if (postUninstallActions) {
                 Logger.verbose(`Running post-uninstall actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-                let postUninstallActionPromises = postUninstallActions.map((postUninstallAction) => new Promise<void>((resolve, reject) => {
-                    let runPostAction = postUninstallAction.condition
-                                        ? postUninstallAction.condition(packageDescriptor, packagePath)
-                                        : true;
-
-                    if (runPostAction) {
-                        (<AsyncAction>postUninstallAction.action)(packageDescriptor, packagePath, (error?: Error) => {
-                            if (error) return reject(error);
-
-                            resolve();
-                        });
-                    }
-                    else {
-                        resolve();
-                    }
-                }));
-
-                Promise.all(postUninstallActionPromises)
-                       .then(() => { resolve(); })
-                       .catch((error) => {
-                           handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
-                       });
+                executeAsynchronousActions(postUninstallActions, packageDescriptor, packagePath)
+                    .then(resolve)
+                    .catch((error) => {
+                        handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
+                    });
             }
             else {
                 resolve();
