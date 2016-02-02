@@ -4,6 +4,7 @@ import * as semver from "semver";
 import * as _ from "underscore";
 import * as jsonFile from "jsonfile";
 import File = require("vinyl");
+import * as path from "path";
 
 import {ConditionableAction, AsyncAction, executeAsynchronousActions} from "./ConditionableAction";
 import {NpmPluginBinding} from "./utilities/NpmPluginBinding";
@@ -56,26 +57,22 @@ function npmPublishPackageBinding(options?: NpmPublishOptions & NpmWorkspacePlug
  * @returns The modified package descriptor.
  */
 function bumpVersion(packageDescriptor: PackageDescriptor, packagePath: string, versionBump: string | VersionBump): PackageDescriptor {
-    let versionIncrement = VersionBump[VersionBump[versionBump]];
-
     let version: string;
 
-    if (versionIncrement) {
-        version = semver.inc(packageDescriptor["version"], versionIncrement);
-    }
-    else {
+    if (typeof versionBump === "string") {
         version = semver.valid(<string>versionBump);
 
         if (!version) {
             throw new Error(`'${versionBump}' is not a valid version.`);
         }
     }
+    else {
+        version = semver.inc(packageDescriptor["version"], VersionBump[versionBump]);
+    }
 
     Logger.verbose(`Bumping workspace package '${util.colors.cyan(packageDescriptor["name"])}' to version '${version}'`);
 
     packageDescriptor["version"] = version;
-
-    jsonFile.writeFileSync(packagePath, packageDescriptor, { spaces: 4 });
 
     return packageDescriptor;
 }
@@ -103,11 +100,13 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
 
             if (versionBump) {
                 packageDescriptor = bumpVersion(packageDescriptor, packagePath, versionBump);
+
+                file.contents = new Buffer(JSON.stringify(packageDescriptor));
+
+                jsonFile.writeFileSync(packagePath, packageDescriptor, { spaces: 4 });
             }
 
             pluginBinding.shellExecuteNpm(packagePath, [ "publish" ]);
-
-            resolve();
         };
 
         try {
@@ -118,7 +117,9 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 Logger.verbose(`Running pre-publish actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
                 executeAsynchronousActions(prePublishActions, packageDescriptor, packagePath)
-                    .then(resolve)
+                    .then(() => {
+                        publishFunc();
+                    })
                     .catch((error) => {
                         handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
                     });
