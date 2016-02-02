@@ -8,10 +8,13 @@ const argv = require("yargs")
     .alias("v", "verbose")
     .argv;
 
+/**
+ * The 'gulp-npmworkspace' plugin name (useful for generating errors).
+ */
 export const PLUGIN_NAME = (<PackageDescriptor>require(path.join(__dirname, "../../package.json"))).name;
 
 /**
- * A type of increment to apply when bumping up version numbers.
+ * A type of increment to apply when bumping up version numbers during a publish.
  */
 export enum VersionBump {
     major,

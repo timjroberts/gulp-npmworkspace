@@ -6,8 +6,7 @@ import * as _ from "underscore";
 import * as through from "through2";
 import File = require("vinyl");
 
-import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
-import {getPackageName, pluginName} from "../utilities/CommandLine";
+import {PLUGIN_NAME, NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {TransformAction, TransformCallback, FlushAction, FlushCallback} from "./StreamFunctionTypes";
 import {PackageDependencyContext} from "./utilities/PackageDependencyContext";
 import {Logger} from "./utilities/Logging";
@@ -48,7 +47,7 @@ export function workspacePackages(options?: gulp.SrcOptions & NpmWorkspacePlugin
 function collectPackages(context: PackageDependencyContext): TransformAction {
     return function (file: File, encoding, callback: TransformCallback) {
         if (file.isStream()) {
-            return callback(new util.PluginError(pluginName, "Streams are not supported."));
+            return callback(new util.PluginError(PLUGIN_NAME, "Streams are not supported."));
         }
 
         let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
@@ -120,7 +119,7 @@ function streamPackages(context: PackageDependencyContext, options: NpmWorkspace
                 Logger.error(util.colors.red(`Circular dependency found in Workspace: ${findPackageNames()}`));
             }
 
-            callback(new util.PluginError(pluginName, "Circular dependency found.", { showProperties: false, showStack: false}));
+            callback(new util.PluginError(PLUGIN_NAME, "Circular dependency found.", { showProperties: false, showStack: false}));
         }
     };
 }

@@ -7,7 +7,7 @@ import * as childProcess from "child_process";
 import * as semver from "semver";
 import File = require("vinyl");
 
-import {packageDescriptorPlugin, MappedPackage} from "./utilities/PackageDescriptorPlugin";
+import {packageDescriptorPlugin, Package} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
 import {NpmWorkspacePluginOptions, getWorkspacePluginOptions} from "../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../PackageDescriptor";
@@ -81,16 +81,16 @@ function lookupRegistryDependencies(registry: string, registryMap: IDictionary<A
  * @param packagePath The path to the package.
  * @param packageMap A dictionary of packages that have been processed by the Gulp plugin.
  */
-function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: string, file: File, packageMap: IDictionary<MappedPackage>): Promise<void> {
+function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: string, file: File, packageMap: IDictionary<Package>): Promise<void> {
     let pluginBinding: NpmPluginBinding<NpmInstallOptions & NpmWorkspacePluginOptions> = this;
 
     return new Promise<void>((resolve, reject) => {
-        Logger.info(`Installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+        Logger.info(util.colors.bold(`Installing workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
 
         let workspaceDependencies: IDictionary<Array<string>> = { "*": [ ] };
         let packageDependencies: IDictionary<Array<string>> = { "*": [ ] };
 
-        let mappedPackage: MappedPackage;
+        let mappedPackage: Package;
 
         try {
             for (let packageName in packageDescriptor.dependencies) {
@@ -176,10 +176,14 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
             pluginBinding.shellExecuteNpmInstall(packagePath, workspaceDependencies);
             pluginBinding.shellExecuteNpmInstall(packagePath, packageDependencies);
 
-            if (pluginBinding.options.postInstallActions) {
-                Logger.info(`Running post-install action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+            let postInstallActions: ConditionableAction<AsyncAction>[]
+                = [].concat(pluginBinding.options.postInstallActions)
+                    .concat(file["getWorkspace"]()["postInstall"]);
 
-                let postInstallActionPromises = pluginBinding.options.postInstallActions.map((postInstallAction) => new Promise<void>((resolve, reject) => {
+            if (postInstallActions) {
+                Logger.verbose(`Running post-install actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
+                let postInstallActionPromises = postInstallActions.map((postInstallAction) => new Promise<void>((resolve, reject) => {
                     let runPostAction = postInstallAction.condition
                                         ? postInstallAction.condition(packageDescriptor, packagePath)
                                         : true;

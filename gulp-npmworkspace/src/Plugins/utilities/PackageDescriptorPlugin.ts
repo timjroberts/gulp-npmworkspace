@@ -11,7 +11,10 @@ import {TransformCallback} from "../StreamFunctionTypes";
 import {Logger} from "./Logging";
 import {PluginError} from "./PluginError";
 
-export interface MappedPackage {
+/**
+ * Represents a package that has been visited by a Gulp plugin implementation.
+ */
+export interface Package {
     packageDescriptor: PackageDescriptor;
 
     packagePath: string;
@@ -22,19 +25,20 @@ export interface MappedPackage {
  *
  * @param packageDescriptor The package descriptor representing the 'package.json' file.
  * @param packagePath The path to the package.
+ * @param file The Gulp file being processed.
  * @param packageMap A dictionary of packages that have been processed by the Gulp plugin.
  */
-export type PluginFunction = (packageDescriptor: PackageDescriptor, packagePath: string, file: File, packageMap: IDictionary<MappedPackage>, ...args: any[]) => void | boolean | Promise<void | boolean>;
+export type PluginFunction = (packageDescriptor: PackageDescriptor, packagePath: string, file: File, packageMap: IDictionary<Package>, ...args: any[]) => void | boolean | Promise<void | boolean>;
 
 /**
  * A fuction that creates a binding for executing [[PluginFunction]] functions. Objects returned
  * by [[PluginFunctionBindingFunction]] are used as 'this' when executing the associated
- * [[PluginFunction]] functions.
+ * [[PluginFunction]] function.
  */
 export type PluginFunctionBindingFunction = (...args: any[]) => any;
 
 /**
- * A function decorator that wraps a supplied function and returns a function that can
+ * A function decorator that wraps a supplied function with a function that can
  * be used as a Gulp plugin.
  *
  * @param pluginFunc A function that represents the plugin implementation.
@@ -46,7 +50,8 @@ export type PluginFunctionBindingFunction = (...args: any[]) => any;
  *
  * pluginFunc can optionally return a boolean value to indicate whether the current
  * 'package.json' file should continue within the stream. Returning undefined is the same as
- * returning true.
+ * returning true. pluginFunc can also return these values as a Promise which then enforces
+ * asynchronous semantics by waiting for the returned promise to yield a value.
  *
  * When throwing errors, use of [[Error]] will halt the stream. Using [[PluginError]], the plugin
  * function can indicate whether the stream should continue or not.
@@ -54,7 +59,7 @@ export type PluginFunctionBindingFunction = (...args: any[]) => any;
 export function packageDescriptorPlugin(pluginFunc: PluginFunction, pluginFuncBindingFunc?: PluginFunctionBindingFunction): (...args: any[]) => NodeJS.ReadWriteStream {
     return function (...args: any[]): NodeJS.ReadWriteStream {
         let pluginBinding = pluginFuncBindingFunc ? pluginFuncBindingFunc(...args) : undefined;
-        let packageMap: IDictionary<MappedPackage> = { };
+        let packageMap: IDictionary<Package> = { };
 
         return through.obj(function (file: File, encoding: string, callback: TransformCallback) {
             if (file.isStream()) return callback(new util.PluginError(PLUGIN_NAME, "Streams are not supported."));

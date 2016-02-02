@@ -2,6 +2,7 @@ import * as util from "gulp-util";
 import {Promise} from "es6-promise";
 import * as semver from "semver";
 import * as jsonFile from "jsonfile";
+import File = require("vinyl");
 
 import {ConditionableAction, AsyncAction} from "./ConditionableAction";
 import {NpmPluginBinding} from "./utilities/NpmPluginBinding";
@@ -86,11 +87,11 @@ function bumpVersion(packageDescriptor: PackageDescriptor, packagePath: string, 
  * @param packageMap A dictionary of packages that have been processed by the Gulp plugin.
  * @param options A optional hash of [[NpmPublishOptions]] and [[NpmWorkspacePluginOptions]].
  */
-function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: string): Promise<void> {
+function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: string, file: File): Promise<void> {
     let pluginBinding: NpmPluginBinding<NpmPublishOptions & NpmWorkspacePluginOptions> = this;
 
     return new Promise<void>((resolve, reject) => {
-        Logger.info(`Publishing workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+        Logger.info(util.colors.bold(`Publishing workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
 
         let publishFunc = () => {
             if (pluginBinding.options.shrinkWrap) {
@@ -109,8 +110,12 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
         };
 
         try {
-            if (pluginBinding.options.prePublishActions) {
-                let prePublishActionPromises = pluginBinding.options.prePublishActions.map((prePublishAction) => new Promise<void>((resolve, reject) => {
+            let prePublishActions: ConditionableAction<AsyncAction>[]
+                = [].concat(pluginBinding.options.prePublishActions)
+                    .concat(file["getWorkspace"]()["prePublish"]);
+
+            if (prePublishActions) {
+                let prePublishActionPromises = prePublishActions.map((prePublishAction) => new Promise<void>((resolve, reject) => {
                     let runPrePublishAction = prePublishAction.condition
                                               ? prePublishAction.condition(packageDescriptor, packagePath)
                                               : true;

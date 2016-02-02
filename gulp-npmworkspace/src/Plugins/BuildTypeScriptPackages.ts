@@ -152,7 +152,7 @@ function buildTypeScriptPackage(packageDescriptor: PackageDescriptor, packagePat
 
             if (!typeScriptConfigurations || typeScriptConfigurations.length === 0) throw new Error("Could not find a 'tsconfig.json' file.");
 
-            Logger.info(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+            Logger.info(util.colors.bold(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
 
             let tscArgFilePromises = typeScriptConfigurations.map((typeScriptConfiguration, idx) => new Promise<string>((resolve, reject) => {
                 let argsFileName = `_${idx.toString()}_${TSC_ARGS_FILENAME}`;
@@ -188,6 +188,8 @@ function buildTypeScriptPackage(packageDescriptor: PackageDescriptor, packagePat
                             .concat(file["getWorkspace"]()["postTypeScriptCompile"]);
 
                     if (postCompileActions.length > 0) {
+                        Logger.verbose(`Running post-compile actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
                         let postCompileActionPromises = postCompileActions.map((postCompileAction) => new Promise<void>((resolve, reject) => {
                             let runPostAction = postCompileAction.condition
                                                 ? postCompileAction.condition(packageDescriptor, packagePath)

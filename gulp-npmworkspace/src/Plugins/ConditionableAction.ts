@@ -1,9 +1,15 @@
 import {PackageDescriptor} from "../PackageDescriptor";
 
+/**
+ * An action that is asynchronous.
+ */
 export interface AsyncAction {
     (packageDescriptor: PackageDescriptor, packagePath: string, callback: (error?: Error) => void): void;
 }
 
+/**
+ * An action that is synchronous.
+ */
 export interface SyncAction {
     (packageDescriptor: PackageDescriptor, packagePath: string): void;
 }

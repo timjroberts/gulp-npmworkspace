@@ -2,6 +2,7 @@ import * as rimraf from "rimraf";
 import * as path from "path";
 import * as util from "gulp-util";
 import * as _ from "underscore";
+import File = require("vinyl");
 
 import {packageDescriptorPlugin} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
@@ -43,19 +44,23 @@ function npmUninstallPackageBinding(options?: NpmUninstallOptions & NpmWorkspace
  * @param packageDescriptor The package descriptor representing the 'package.json' file.
  * @param packagePath The path to the package.
  */
-function npmUninstallPackage(packageDescriptor: PackageDescriptor, packagePath: string): Promise<void> {
+function npmUninstallPackage(packageDescriptor: PackageDescriptor, packagePath: string, file: File): Promise<void> {
     let pluginBinding: NpmPluginBinding<NpmUninstallOptions & NpmWorkspacePluginOptions> = this;
 
     return new Promise<void>((resolve, reject) => {
-        Logger.info(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+        Logger.info(util.colors.bold(`Uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
 
         try {
             rimraf.sync(path.resolve(packagePath, "node_modules"));
 
-            if (pluginBinding.options.postUninstallActions) {
-                Logger.info(`Running post-uninstall action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+            let postUninstallActions: ConditionableAction<AsyncAction>[]
+                = [].concat(pluginBinding.options.postUninstallActions)
+                    .concat(file["getWorkspace"]()["postUninstall"]);
 
-                let postUninstallActionPromises = pluginBinding.options.postUninstallActions.map((postUninstallAction) => new Promise<void>((resolve, reject) => {
+            if (postUninstallActions) {
+                Logger.verbose(`Running post-uninstall actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+
+                let postUninstallActionPromises = postUninstallActions.map((postUninstallAction) => new Promise<void>((resolve, reject) => {
                     let runPostAction = postUninstallAction.condition
                                         ? postUninstallAction.condition(packageDescriptor, packagePath)
                                         : true;
