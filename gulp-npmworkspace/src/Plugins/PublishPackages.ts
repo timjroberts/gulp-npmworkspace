@@ -130,7 +130,7 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 Promise.all(prePublishActionPromises)
                        .then(() => { publishFunc(); })
                        .catch((error) => {
-                           throw error;
+                           handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
                        });
             }
             else {
@@ -138,11 +138,15 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
             }
         }
         catch (error) {
-            reject(new PluginError("Error publishing a workspace package",
-                                   `Error publishing workspace package '${util.colors.cyan(packageDescriptor.name)}': \n ${error.message}`,
-                                   { continue: pluginBinding.options.continueOnError }));
+            handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
         }
     });
+}
+
+function handleError(error: any, packageName: string, continueOnError: boolean, rejectFunc: (error?: any) => void) {
+    rejectFunc(new PluginError("Error publishing a workspace package",
+                               `Error publishing workspace package '${util.colors.cyan(packageName)}':\n${util.colors.red(error.message)}`,
+                               { continue: continueOnError }));
 }
 
 /**

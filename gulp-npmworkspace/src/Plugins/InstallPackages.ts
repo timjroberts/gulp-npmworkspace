@@ -5,6 +5,7 @@ import * as fs from "fs";
 import {Promise} from "es6-promise";
 import * as childProcess from "child_process";
 import * as semver from "semver";
+import File = require("vinyl");
 
 import {packageDescriptorPlugin, MappedPackage} from "./utilities/PackageDescriptorPlugin";
 import {PluginError, PluginErrorOptions} from "./utilities/PluginError";
@@ -79,9 +80,8 @@ function lookupRegistryDependencies(registry: string, registryMap: IDictionary<A
  * @param packageDescriptor The package descriptor representing the 'package.json' file.
  * @param packagePath The path to the package.
  * @param packageMap A dictionary of packages that have been processed by the Gulp plugin.
- * @param options A optional hash of [[NpmInstallOptions]] and [[NpmWorkspacePluginOptions]].
  */
-function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: string, packageMap: IDictionary<MappedPackage>): Promise<void> {
+function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: string, file: File, packageMap: IDictionary<MappedPackage>): Promise<void> {
     let pluginBinding: NpmPluginBinding<NpmInstallOptions & NpmWorkspacePluginOptions> = this;
 
     return new Promise<void>((resolve, reject) => {
@@ -156,9 +156,6 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 }
             }
 
-            pluginBinding.shellExecuteNpmInstall(packagePath, workspaceDependencies);
-            pluginBinding.shellExecuteNpmInstall(packagePath, packageDependencies);
-
             Logger.verbose((logger) => {
                 let logDependencies = function(level: string, registryPackages: IDictionary<Array<string>>) {
                     for (let registry in registryPackages) {
@@ -175,6 +172,9 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 logDependencies("workspace package", packageDependencies);
                 logDependencies("workspace", workspaceDependencies);
             });
+
+            pluginBinding.shellExecuteNpmInstall(packagePath, workspaceDependencies);
+            pluginBinding.shellExecuteNpmInstall(packagePath, packageDependencies);
 
             if (pluginBinding.options.postInstallActions) {
                 Logger.info(`Running post-install action for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
@@ -199,7 +199,7 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 Promise.all(postInstallActionPromises)
                        .then(() => { resolve(); })
                        .catch((error) => {
-                           throw error;
+                           handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
                        });
             }
             else {
@@ -207,11 +207,15 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
             }
         }
         catch (error) {
-            reject (new PluginError("Error installing a workspace package",
-                                    `Error installing workspace package '${util.colors.cyan(packageDescriptor.name)}': \n ${error.message}`,
-                                    { continue: pluginBinding.options.continueOnError }));
+            handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
         }
     });
+}
+
+function handleError(error: any, packageName: string, continueOnError: boolean, rejectFunc: (error?: any) => void) {
+    rejectFunc(new PluginError("Error installing a workspace package",
+                               `Error installing workspace package '${util.colors.cyan(packageName)}':\n${util.colors.red(error.message)}`,
+                               { continue: continueOnError }));
 }
 
 /**

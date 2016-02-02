@@ -24,7 +24,7 @@ export interface MappedPackage {
  * @param packagePath The path to the package.
  * @param packageMap A dictionary of packages that have been processed by the Gulp plugin.
  */
-export type PluginFunction = (packageDescriptor: PackageDescriptor, packagePath: string, packageMap: IDictionary<MappedPackage>, ...args: any[]) => void | boolean | Promise<void | boolean>;
+export type PluginFunction = (packageDescriptor: PackageDescriptor, packagePath: string, file: File, packageMap: IDictionary<MappedPackage>, ...args: any[]) => void | boolean | Promise<void | boolean>;
 
 /**
  * A fuction that creates a binding for executing [[PluginFunction]] functions. Objects returned
@@ -77,7 +77,7 @@ export function packageDescriptorPlugin(pluginFunc: PluginFunction, pluginFuncBi
             }
 
             try {
-                let result: any = pluginFunc.apply(pluginBinding, [ packageDescriptor, pathInfo.dir, packageMap ].concat(args))
+                let result: any = pluginFunc.apply(pluginBinding, [ packageDescriptor, pathInfo.dir, file, packageMap ].concat(args))
 
                 if (result instanceof Promise) {
                     (<Promise<void | boolean>>result).then((promiseResult: void | boolean) => {
@@ -89,7 +89,7 @@ export function packageDescriptorPlugin(pluginFunc: PluginFunction, pluginFuncBi
                         }
                     })
                     .catch((error) => {
-                        throw error;
+                        handleError(error, file, callback);
                     });
                 }
                 else {
@@ -102,17 +102,21 @@ export function packageDescriptorPlugin(pluginFunc: PluginFunction, pluginFuncBi
                 }
             }
             catch (error) {
-                if (error instanceof PluginError) {
-                    Logger.error((<PluginError>error).consoleMessage, file);
-
-                    callback((<PluginError>error).options.continue ? null : new util.PluginError(PLUGIN_NAME, error.message, { showProperties: false, showStack: false}),
-                             file);
-                }
-                else {
-                    callback(new util.PluginError(PLUGIN_NAME, error.message, { showProperties: false, showStack: false}),
-                             file);
-                }
+                handleError(error, file, callback);
             }
         });
     };
+}
+
+function handleError(error: any, file: File, callback: TransformCallback): void {
+    if (error instanceof PluginError) {
+        Logger.error((<PluginError>error).consoleMessage, file);
+
+        callback((<PluginError>error).options.continue ? null : new util.PluginError(PLUGIN_NAME, error.message, { showProperties: false, showStack: false}),
+                    file);
+    }
+    else {
+        callback(new util.PluginError(PLUGIN_NAME, error.message, { showProperties: false, showStack: false}),
+                    file);
+    }
 }

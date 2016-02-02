@@ -75,7 +75,7 @@ function npmUninstallPackage(packageDescriptor: PackageDescriptor, packagePath: 
                 Promise.all(postUninstallActionPromises)
                        .then(() => { resolve(); })
                        .catch((error) => {
-                           throw error;
+                           handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
                        });
             }
             else {
@@ -83,11 +83,15 @@ function npmUninstallPackage(packageDescriptor: PackageDescriptor, packagePath: 
             }
         }
         catch (error) {
-            reject(new PluginError("Error uninstalling a workspace package",
-                                   `Error uninstalling workspace package '${util.colors.cyan(packageDescriptor.name)}': \n ${error.message}`,
-                                   { continue: pluginBinding.options.continueOnError }));
+            handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
         }
     });
+}
+
+function handleError(error: any, packageName: string, continueOnError: boolean, rejectFunc: (error?: any) => void) {
+    rejectFunc(new PluginError("Error uninstalling a workspace package",
+                               `Error uninstalling workspace package '${util.colors.cyan(packageName)}':\n${util.colors.red(error.message)}`,
+                               { continue: continueOnError }));
 }
 
 /**

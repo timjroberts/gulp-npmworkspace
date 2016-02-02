@@ -1,3 +1,5 @@
+import File = require("vinyl");
+
 import {packageDescriptorPlugin, MappedPackage} from "./utilities/PackageDescriptorPlugin";
 import {PackageDescriptor} from "../PackageDescriptor";
 
@@ -19,7 +21,7 @@ export type FilterFunction<T> = (packageDescriptor: PackageDescriptor, packagePa
  *
  * @returns A boolean value returned from the filter function.
  */
-function filterPackage(packageDescriptor: PackageDescriptor, packagePath: string, packageMap: IDictionary<MappedPackage>, filterFunc: FilterFunction<boolean>): boolean {
+function filterPackage(packageDescriptor: PackageDescriptor, packagePath: string, file: File, packageMap: IDictionary<MappedPackage>, filterFunc: FilterFunction<boolean>): boolean {
     return filterFunc(packageDescriptor, packagePath);
 }
 
