@@ -101,9 +101,9 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
             if (versionBump) {
                 packageDescriptor = bumpVersion(packageDescriptor, packagePath, versionBump);
 
-                file.contents = new Buffer(JSON.stringify(packageDescriptor));
+                jsonFile.writeFileSync(path.join(packagePath, "package.json"), packageDescriptor, { spaces: 4 });
 
-                jsonFile.writeFileSync(packagePath, packageDescriptor, { spaces: 4 });
+                file.contents = new Buffer(JSON.stringify(packageDescriptor));
             }
 
             pluginBinding.shellExecuteNpm(packagePath, [ "publish" ]);
