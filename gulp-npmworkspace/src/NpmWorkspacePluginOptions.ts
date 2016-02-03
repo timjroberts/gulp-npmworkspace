@@ -62,6 +62,12 @@ export interface NpmWorkspacePluginOptions {
      * The current working directory.
      */
     cwd?: string;
+
+    /**
+     * Disables external workspace linking and treats assocaited dependencies as normal
+     * dependencies.
+     */
+    disableExternalWorkspaces?: boolean;
 }
 
 /**
@@ -71,7 +77,8 @@ const DEFAULT_WORKSPACE_PLUGIN_OPTIONS: NpmWorkspacePluginOptions = {
     enableLogging: true,
     verboseLogging: false,
     versionBump: VersionBump.patch,
-    cwd: process.cwd()
+    cwd: process.cwd(),
+    disableExternalWorkspaces: false
 };
 
 /**
@@ -111,8 +118,14 @@ function getCmdLineWorkspacePluginOptions(): NpmWorkspacePluginOptions {
         options.verboseLogging = true;
     }
 
-    if (argv.versionbump) {
-        options.versionBump = argv.versionbump;
+    // --version-bump=<semver>
+    if (argv.versionBump && typeof argv.versionBump === "string") {
+        options.versionBump = argv.versionBump;
+    }
+
+    // --disable-externals
+    if (argv.disableExternals) {
+        options.disableExternalWorkspaces = true;
     }
 
     return options;

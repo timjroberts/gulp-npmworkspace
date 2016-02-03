@@ -85,7 +85,7 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 mappedPackage = packageMap[packageName];
                 externalPackagePath = pluginBinding.options.externalWorkspacePackageMap[packageName];
 
-                if (mappedPackage && externalPackagePath) {
+                if (!pluginBinding.options.disableExternalWorkspaces && (mappedPackage && externalPackagePath)) {
                     Logger.warn(`Package '${packageName}' is both a workspace package and has an entry in options.externalWorkspacePackageMap. Using workspace package.`);
                 }
 
@@ -95,7 +95,7 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                     continue;
                 }
 
-                if (externalPackagePath) {
+                if (!pluginBinding.options.disableExternalWorkspaces && externalPackagePath) {
                     linkExternalPackage(pluginBinding, packageName, packagePath, externalPackagePath);
 
                     continue;
@@ -113,7 +113,7 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 mappedPackage = packageMap[packageName];
                 externalPackagePath = pluginBinding.options.externalWorkspacePackageMap[packageName];
 
-                if (mappedPackage && externalPackagePath) {
+                if (!pluginBinding.options.disableExternalWorkspaces && (mappedPackage && externalPackagePath)) {
                     Logger.warn(`Package '${packageName}' is both a workspace package and has an entry in options.externalWorkspacePackageMap. Using workspace package.`);
                 }
 
@@ -123,7 +123,7 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                     continue;
                 }
 
-                if (externalPackagePath) {
+                if (!pluginBinding.options.disableExternalWorkspaces && externalPackagePath) {
                     linkExternalPackage(pluginBinding, packageName, packagePath, externalPackagePath);
 
                     continue;
