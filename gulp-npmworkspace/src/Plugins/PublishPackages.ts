@@ -107,6 +107,8 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
             }
 
             pluginBinding.shellExecuteNpm(packagePath, [ "publish" ]);
+
+            resolve();
         };
 
         try {
