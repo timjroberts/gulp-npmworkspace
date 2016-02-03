@@ -150,7 +150,11 @@ function buildTypeScriptPackage(packageDescriptor: PackageDescriptor, packagePat
         try {
             let typeScriptConfigurations = pluginBinding.getTypeScriptCompilerConfiguration(file, packagePath);
 
-            if (!typeScriptConfigurations || typeScriptConfigurations.length === 0) throw new Error("Could not find a 'tsconfig.json' file.");
+            if (!typeScriptConfigurations || typeScriptConfigurations.length === 0) {
+                Logger.warn("Could not find a 'tsconfig.json' file.");
+
+                return resolve();
+            }
 
             Logger.info(util.colors.bold(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
 

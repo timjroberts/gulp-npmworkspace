@@ -52,8 +52,8 @@ function collectPackages(context: PackageDependencyContext): TransformAction {
 
         let packageDescriptor: PackageDescriptor = JSON.parse(file.contents.toString());
 
-        if (packageDescriptor.isWorkspace) {
-            return callback(); // Ignore package.json files marked as 'isWorkspace'
+        if (packageDescriptor.workspace) {
+            return callback(); // Ignore package.json files marked as being workspaces
         }
 
         context.addPackage(packageDescriptor, file);

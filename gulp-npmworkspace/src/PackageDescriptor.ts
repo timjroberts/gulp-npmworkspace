@@ -6,7 +6,7 @@ export interface PackageDescriptor {
 
     version?: string;
 
-    isWorkspace?: boolean;
+    workspace?: boolean;
 
     dependencies?: IDictionary<string>;
 

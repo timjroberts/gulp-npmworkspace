@@ -117,11 +117,9 @@ function handleError(error: any, file: File, callback: TransformCallback): void 
     if (error instanceof PluginError) {
         Logger.error((<PluginError>error).consoleMessage, file);
 
-        callback((<PluginError>error).options.continue ? null : new util.PluginError(PLUGIN_NAME, error.message, { showProperties: false, showStack: false}),
-                    file);
+        callback((<PluginError>error).options.continue ? null : new util.PluginError(PLUGIN_NAME, error.message, { showProperties: false, showStack: false}), file);
     }
     else {
-        callback(new util.PluginError(PLUGIN_NAME, error.message, { showProperties: false, showStack: false}),
-                    file);
+        callback(new util.PluginError(PLUGIN_NAME, error.message, { showProperties: false, showStack: false}), file);
     }
 }
