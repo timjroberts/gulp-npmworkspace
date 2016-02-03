@@ -57,6 +57,11 @@ export interface NpmWorkspacePluginOptions {
      * during a publish.
      */
     versionBump?: string | VersionBump;
+
+    /**
+     * The current working directory.
+     */
+    cwd?: string;
 }
 
 /**
@@ -65,7 +70,8 @@ export interface NpmWorkspacePluginOptions {
 const DEFAULT_WORKSPACE_PLUGIN_OPTIONS: NpmWorkspacePluginOptions = {
     enableLogging: true,
     verboseLogging: false,
-    versionBump: VersionBump.patch
+    versionBump: VersionBump.patch,
+    cwd: process.cwd()
 };
 
 /**
