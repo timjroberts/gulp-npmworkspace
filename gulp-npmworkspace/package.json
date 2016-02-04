@@ -9,10 +9,6 @@
     "scripts": {
         "test-specs": "cucumberjs ./src/test/specification -r ./lib/test/specification"
     },
-    "engineStrict": true,
-    "engines": {
-        "node": ">=4.0.0"
-    },
     "keywords": [
         "gulp",
         "npm",
