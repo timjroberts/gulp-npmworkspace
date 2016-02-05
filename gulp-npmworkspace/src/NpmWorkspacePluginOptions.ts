@@ -107,11 +107,14 @@ function getCmdLineWorkspacePluginOptions(): NpmWorkspacePluginOptions {
 
     if (argv.package) {
         let matches = /(\!?)(.+)/.exec(argv.package);
-        let exclusiveMarkerToken = matches[1];
-        let packageToken = matches[2];
+        
+        if (matches) {
+            let exclusiveMarkerToken = matches[1];
+            let packageToken = matches[2];
 
-        options.package = packageToken;
-        options.onlyNamedPackage = exclusiveMarkerToken === EXCLUSIVE_PACKAGE_SYMBOL;
+            options.package = packageToken;
+            options.onlyNamedPackage = exclusiveMarkerToken === EXCLUSIVE_PACKAGE_SYMBOL;
+        }
     }
 
     if (argv.verbose) {

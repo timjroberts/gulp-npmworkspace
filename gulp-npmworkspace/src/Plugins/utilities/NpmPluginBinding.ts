@@ -65,13 +65,18 @@ export class NpmPluginBinding<TOptions> {
      * @param registryMap The map of registry and packages that should be installed.
      */
     public shellExecuteNpmInstall(packagePath: string, registryMap: IDictionary<Array<string>>): void {
+        const INSTALLABLE_PACKAGE_CHUNKSIZE: number = 50;
+        
         for (let registry in registryMap) {
             let packages = registryMap[registry];
 
             if (!packages || packages.length === 0) continue;
 
-            let installablePackages = _.first(packages, 10);
-            packages = _.rest(packages, 10);
+            // Install packages in bundles because command line lengths aren't infinite. Windows for example has 
+            // a command line limit of 8192 characters. It's variable on *nix and OSX but will in the 100,000s
+            
+            let installablePackages = _.first(packages, INSTALLABLE_PACKAGE_CHUNKSIZE);
+            packages = _.rest(packages, INSTALLABLE_PACKAGE_CHUNKSIZE);
 
             while (installablePackages && installablePackages.length > 0) {
                 var installArgs = ["install"].concat(installablePackages);
@@ -89,8 +94,8 @@ export class NpmPluginBinding<TOptions> {
 
                 this.shellExecuteNpm(packagePath, installArgs);
 
-                installablePackages = _.first(packages, 10);
-                packages = _.rest(packages, 10);
+                installablePackages = _.first(packages, INSTALLABLE_PACKAGE_CHUNKSIZE);
+                packages = _.rest(packages, INSTALLABLE_PACKAGE_CHUNKSIZE);
             }
         }
     }

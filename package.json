@@ -1,5 +1,5 @@
 {
-    "isWorkspace": true,
+    "workspace": true,
     "name": "gulp-npmworkspace-workspace",
     "description": "Workspace for 'gulp-npmworkspace'.",
     "license": "BSD",
