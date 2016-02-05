@@ -36,7 +36,7 @@ gulp.task("run-spec-tests", function() {
         .pipe(workspace.filter(function (packageDescriptor, packagePath) {
             return packageDescriptor.name === "gulp-npmworkspace-specs"
         }))
-        .pipe(testCucumber());
+        .pipe(workspace.runCucumber());
 });
 
 
@@ -47,23 +47,3 @@ gulp.task("publish", function() {
         }))
         .pipe(workspace.npmPublish({ shrinkWrap: false, bump: "patch" }));
 });
-
-
-function testCucumber() {
-    var Cucumber = require("cucumber");
-
-    return through.obj(function (file, _, callback) {
-        var packagePath = path.parse(file.path).dir;
-
-        Cucumber
-            .Cli([ "node", ".\node_modules\cucumber\bin\cucumber.js", path.join(packagePath, "features"), "-r", path.join(packagePath, "step_definitions") ])
-            .run(function(success) {
-                if (success) {
-                    callback(null, file);
-                }
-                else {
-                    callback(new Error("Failed"));
-                }
-            });
-    });
-}
