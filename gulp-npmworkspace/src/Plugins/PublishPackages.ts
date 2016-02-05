@@ -61,9 +61,11 @@ function bumpVersion(packageDescriptor: PackageDescriptor, packagePath: string, 
 
     if (typeof versionBump === "string") {
         let versionBumpValue: string = VersionBump[VersionBump[versionBump]];
-        
-        version = semver.inc(packageDescriptor["version"], versionBumpValue ? versionBumpValue : versionBump);
-        
+
+        version = versionBumpValue
+                  ? semver.inc(packageDescriptor["version"], versionBump)
+                  : semver.valid(versionBump);
+
         if (!version) {
             throw new Error(`'${versionBump}' is not a valid version.`);
         }
