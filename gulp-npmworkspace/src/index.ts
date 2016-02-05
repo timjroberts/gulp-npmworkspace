@@ -8,6 +8,7 @@ export * from "./Plugins/InstallPackages";
 export * from "./Plugins/UninstallPackages";
 export * from "./Plugins/PublishPackages";
 export * from "./Plugins/BuildTypeScriptPackages";
+export * from "./Plugins/TestCucumberPackages";
 
 /**
  * Post install actions.
