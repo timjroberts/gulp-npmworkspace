@@ -36,7 +36,7 @@ export interface TypeScriptCompileOptions {
     /**
      * A combination of a condition and an action that will be executed once the package has been compiled.
      */
-    postCompileActions?: Array<ConditionableAction<AsyncAction>>;
+    postTypeScriptCompileActions?: Array<ConditionableAction<AsyncAction>>;
 }
 
 const TSC_ARGS_FILENAME: string = "_args.tmp";
@@ -188,7 +188,7 @@ function buildTypeScriptPackage(packageDescriptor: PackageDescriptor, packagePat
                     });
 
                     let postCompileActions: ConditionableAction<AsyncAction>[]
-                        = _.union(pluginBinding.options.postCompileActions, file["getWorkspace"]()["postTypeScriptCompile"]);
+                        = _.union(pluginBinding.options.postTypeScriptCompileActions, file["getWorkspace"]()["postTypeScriptCompile"]);
 
                     if (postCompileActions && postCompileActions.length > 0) {
                         Logger.verbose(`Running post-compile actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
@@ -202,6 +202,9 @@ function buildTypeScriptPackage(packageDescriptor: PackageDescriptor, packagePat
                     else {
                         resolve();
                     }
+                }
+                catch (error) {
+                    handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
                 }
                 finally {
                     argsFileNames.forEach((argsFileName) => {

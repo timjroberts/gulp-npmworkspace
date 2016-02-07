@@ -4,7 +4,7 @@ import {packageDescriptorPlugin, Package} from "./utilities/PackageDescriptorPlu
 import {PackageDescriptor} from "../PackageDescriptor";
 
 /**
- * A function that returns true to indicate that a package should be filtered.
+ * A function that returns false to indicate that a package should be filtered.
  *
  * @param packageDescriptor The package descriptor representing the 'package.json' file.
  * @param packagePath The path to the package.
