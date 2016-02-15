@@ -114,6 +114,10 @@ Streams the workspace package's `package.json` files in dependency order.
 _options_: An optional hash of options that is a union of the options that can be passed to `gulp.src()`
 and the following:
 
+> _additionalPaths_?: string[]  
+> An array of strings representing the additional paths within the workspace to include when looking for
+> workspace packages.
+
 > _package_?: string  
 > The name of the workspace package to focus streaming on.
 

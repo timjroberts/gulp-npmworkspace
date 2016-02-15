@@ -15,6 +15,16 @@ import {PackageDescriptor} from "../PackageDescriptor";
 const LOCAL_GULP_WORKSPACE_FILENAME: string = "gulpfile.workspace.js";
 
 /**
+ * Options for workspacePackages().
+ */
+export interface WorkspacePackagesOptions {
+    /**
+     * An array of additional paths to include when looking for workspace packages.
+     */
+    additionalPaths?: Array<string>;
+}
+
+/**
  * A Gulp plugin that returns a stream of 'package.json' files that have been found in the current
  * workspace. The files are streamed in dependency order.
  *
@@ -23,12 +33,18 @@ const LOCAL_GULP_WORKSPACE_FILENAME: string = "gulpfile.workspace.js";
  *
  * @returns A stream that contains the 'package.json' files found in the current workspace.
  */
-export function workspacePackages(options?: gulp.SrcOptions & NpmWorkspacePluginOptions): NodeJS.ReadWriteStream {
+export function workspacePackages(options?: gulp.SrcOptions & NpmWorkspacePluginOptions & WorkspacePackagesOptions): NodeJS.ReadWriteStream {
     options = _.extend(getWorkspacePluginOptions(options), options, { read: true });
 
     let context = new PackageDependencyContext();
 
-    return gulp.src([ "./package.json", "./*/package.json" ], options)
+    let packageSourcePaths = [ "./package.json", "./*/package.json" ];
+
+    if (options.additionalPaths) {
+       packageSourcePaths = _.union(packageSourcePaths, options.additionalPaths.map((p) => path.join(p, "*/package.json")))
+    }
+
+    return gulp.src(packageSourcePaths, options)
         .pipe(through.obj(collectPackages(context), streamPackages(context, options)));
 }
 
