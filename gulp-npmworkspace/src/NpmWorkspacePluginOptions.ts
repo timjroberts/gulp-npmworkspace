@@ -1,4 +1,5 @@
 import * as path from "path"
+import * as fs from "fs";
 import * as _ from "underscore";
 
 import {PackageDescriptor} from "./PackageDescriptor";
@@ -100,20 +101,20 @@ export function getWorkspacePluginOptions(localOptions?: NpmWorkspacePluginOptio
 /**
  * Returns the options that are set on the command line.
  */
-function getCmdLineWorkspacePluginOptions(): NpmWorkspacePluginOptions {
+var getCmdLineWorkspacePluginOptions = cache(function(): NpmWorkspacePluginOptions {
     const EXCLUSIVE_PACKAGE_SYMBOL: string = "!";
 
     let options: NpmWorkspacePluginOptions = { };
 
     if (argv.package) {
         let matches = /(\!?)(.+)/.exec(argv.package);
-        
+
         if (matches) {
             let exclusiveMarkerToken = matches[1];
             let packageToken = matches[2];
 
-            options.package = packageToken;
-            options.onlyNamedPackage = exclusiveMarkerToken === EXCLUSIVE_PACKAGE_SYMBOL;
+            options.package = findPackageName(packageToken);
+            options.onlyNamedPackage = options.package ? exclusiveMarkerToken === EXCLUSIVE_PACKAGE_SYMBOL : false;
         }
     }
 
@@ -132,4 +133,60 @@ function getCmdLineWorkspacePluginOptions(): NpmWorkspacePluginOptions {
     }
 
     return options;
+});
+
+/**
+ * Resolves the supplied package token to a package name.
+ *
+ * @param packageToken The package name that has been taken from the command line.
+ *
+ * @returns A string representing the resolved package name.
+ */
+function findPackageName(packageToken: string): string {
+    let currentPath = path.isAbsolute(packageToken) ? packageToken : path.join(process.cwd(), packageToken);
+
+    if (!fs.existsSync(currentPath)) {
+        return packageToken;
+    }
+
+    if (fs.statSync(currentPath).isFile()) {
+        currentPath = path.parse(currentPath).dir;
+    }
+
+    let currentPackagePath = path.join(currentPath, "package.json");
+    let currentPackagePathInfo: path.ParsedPath;
+
+    do {
+        if (fs.existsSync(currentPackagePath)) {
+            return (<PackageDescriptor>require(currentPackagePath)).name;
+        }
+
+        currentPackagePath = path.join(currentPackagePath, "..", "..", "package.json");
+        currentPackagePathInfo = path.parse(currentPackagePath);
+    } while (currentPackagePathInfo.dir !== currentPackagePathInfo.root)
+
+
+    return packageToken;
+}
+
+/**
+ * Caches a value returned from a function and returns that value on subsequent invocations.
+ *
+ * @param valueProviderFunc A function that will provide the value to cache.
+ *
+ * @returns A function that decorates the supplied value provider by ensuring that the value
+ * provider is only invoked once.
+ */
+function cache<TValue>(valueProviderFunc: (...args: any[]) => TValue): (...args: any[]) => TValue {
+    let cacheValue: TValue;
+
+    return function(...args: any[]): TValue {
+        if (cacheValue) {
+            return cacheValue;
+        }
+
+        cacheValue = valueProviderFunc(args);
+
+        return cacheValue;
+    };
 }

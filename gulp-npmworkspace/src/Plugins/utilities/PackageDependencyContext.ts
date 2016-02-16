@@ -1,7 +1,10 @@
+import * as util from "gulp-util";
 import {DepGraph} from "dependency-graph";
 import File = require("vinyl");
 
+import {PLUGIN_NAME} from "../../NpmWorkspacePluginOptions";
 import {PackageDescriptor} from "../../PackageDescriptor";
+import {Logger} from "../utilities/Logging";
 
 /**
  * Collects workspace packages and the dependencies between them.
@@ -52,6 +55,10 @@ export class PackageDependencyContext {
         }
 
         if (startingPackage) {
+            if (!this._packageGraph.hasNode(startingPackage)) {
+                throw new util.PluginError(PLUGIN_NAME, `'${startingPackage}' could not resolve to a workspace package.`, { showProperties: false, showStack: false});
+            }
+
             this._packageGraph.dependenciesOf(startingPackage).forEach(collectFunc, this);
             collectFunc.call(this, startingPackage);
 

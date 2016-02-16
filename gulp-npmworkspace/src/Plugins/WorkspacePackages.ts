@@ -44,8 +44,12 @@ export function workspacePackages(options?: gulp.SrcOptions & NpmWorkspacePlugin
        packageSourcePaths = _.union(packageSourcePaths, options.additionalPaths.map((p) => path.join(p, "*/package.json")))
     }
 
-    return gulp.src(packageSourcePaths, options)
+    let packagesStream = gulp.src(packageSourcePaths, options)
         .pipe(through.obj(collectPackages(context), streamPackages(context, options)));
+
+    packagesStream.once("error", () => { });
+
+    return packagesStream;
 }
 
 /**
@@ -116,7 +120,7 @@ function streamPackages(context: PackageDependencyContext, options: NpmWorkspace
         catch (error) {
             if (error instanceof util.PluginError) {
                 if (options.enableLogging) {
-                    Logger.error(util.colors.red(`Unexpected error: ${error.message}`));
+                    Logger.error(error.message);
                 }
 
                 return callback(error);
