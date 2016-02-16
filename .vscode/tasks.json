@@ -7,7 +7,7 @@
     "tasks": [
         {
             "taskName": "compile",
-            "args": [],
+            "args": ["-p", "!${file}"],
             "isBuildCommand": true
         },
         {
