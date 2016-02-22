@@ -27,6 +27,13 @@ export interface NpmInstallOptions {
     continueOnError?: boolean;
 
     /**
+     * true to install only the production dependencies.
+     *
+     * Defaults to false.
+     */
+    productionOnly?: boolean;
+
+    /**
      * true to apply an installation strategy that attempts to install all devDependencies
      * in the root of the workspace. If a required version cannot be satified by the version
      * installed at the workspace level, then the package is installed locally.
@@ -58,7 +65,7 @@ export interface NpmInstallOptions {
  * @returns An [[NpmPluginBinding<>]] object.
  */
 function npmInstallPackageBinding(options?: NpmInstallOptions & NpmWorkspacePluginOptions): NpmPluginBinding<NpmInstallOptions & NpmWorkspacePluginOptions> {
-    return new NpmPluginBinding<NpmInstallOptions & NpmWorkspacePluginOptions>(_.extend(getWorkspacePluginOptions(options), { continueOnError: true, minimizeSizeOnDisk: true, registryMap: { }, externalWorkspacePackageMap: { } }, options));
+    return new NpmPluginBinding<NpmInstallOptions & NpmWorkspacePluginOptions>(_.extend(getWorkspacePluginOptions(options), { continueOnError: true, productionOnly: false, minimizeSizeOnDisk: true, registryMap: { }, externalWorkspacePackageMap: { } }, options));
 }
 
 /**
@@ -105,55 +112,57 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                     .push(`${packageName}@${pluginBinding.toSemverRange(packageDescriptor.dependencies[packageName])}`);
             }
 
-            let devDependencies: IDictionary<string> = { };
+            if (!pluginBinding.options.productionOnly) {
+                let devDependencies: IDictionary<string> = { };
 
-            _.extend(devDependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
+                _.extend(devDependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
 
-            for (var packageName in devDependencies) {
-                mappedPackage = packageMap[packageName];
-                externalPackagePath = pluginBinding.options.externalWorkspacePackageMap[packageName];
+                for (var packageName in devDependencies) {
+                    mappedPackage = packageMap[packageName];
+                    externalPackagePath = pluginBinding.options.externalWorkspacePackageMap[packageName];
 
-                if (!pluginBinding.options.disableExternalWorkspaces && (mappedPackage && externalPackagePath)) {
-                    Logger.warn(`Package '${packageName}' is both a workspace package and has an entry in options.externalWorkspacePackageMap. Using workspace package.`);
-                }
+                    if (!pluginBinding.options.disableExternalWorkspaces && (mappedPackage && externalPackagePath)) {
+                        Logger.warn(`Package '${packageName}' is both a workspace package and has an entry in options.externalWorkspacePackageMap. Using workspace package.`);
+                    }
 
-                if (mappedPackage) {
-                    linkWorkspacePackage(pluginBinding, packageName, packagePath, mappedPackage.packagePath);
+                    if (mappedPackage) {
+                        linkWorkspacePackage(pluginBinding, packageName, packagePath, mappedPackage.packagePath);
 
-                    continue;
-                }
+                        continue;
+                    }
 
-                if (!pluginBinding.options.disableExternalWorkspaces && externalPackagePath) {
-                    linkExternalPackage(pluginBinding, packageName, packagePath, externalPackagePath);
+                    if (!pluginBinding.options.disableExternalWorkspaces && externalPackagePath) {
+                        linkExternalPackage(pluginBinding, packageName, packagePath, externalPackagePath);
 
-                    continue;
-                }
+                        continue;
+                    }
 
-                if (!pluginBinding.options.minimizeSizeOnDisk) {
-                    // Don't care about minimizing size on disk, so install it in the package
-                    lookupRegistryDependencies(pluginBinding.options.registryMap[packageName], packageDependencies)
-                        .push(`${packageName}@${pluginBinding.toSemverRange(packageDescriptor.devDependencies[packageName])}`);
-
-                    continue;
-                }
-
-                let workspacePackagePath = path.join(process.cwd(), "node_modules", packageName);
-
-                if (!fs.existsSync(workspacePackagePath)) {
-                    // Doesn't exist in the workspace, so install it there
-                    lookupRegistryDependencies(pluginBinding.options.registryMap[packageName], workspaceDependencies)
-                        .push(`${packageName}@${pluginBinding.toSemverRange(packageDescriptor.devDependencies[packageName])}`);
-                }
-                else {
-                    // Does exist in the workspace, so if the version there satisfies our version requirements do nothing
-                    // and we'll use that version; otherwise, install it in the package
-                    let workspacePackageVersion = require(path.join(workspacePackagePath, "package.json")).version;
-
-                    if (!semver.satisfies(workspacePackageVersion, packageDescriptor.devDependencies[packageName])) {
+                    if (!pluginBinding.options.minimizeSizeOnDisk) {
+                        // Don't care about minimizing size on disk, so install it in the package
                         lookupRegistryDependencies(pluginBinding.options.registryMap[packageName], packageDependencies)
                             .push(`${packageName}@${pluginBinding.toSemverRange(packageDescriptor.devDependencies[packageName])}`);
 
-                        Logger.warn(util.colors.yellow(`Package '${packageName}' cannot be satisfied by version ${workspacePackageVersion}. Installing locally.`));
+                        continue;
+                    }
+
+                    let workspacePackagePath = path.join(process.cwd(), "node_modules", packageName);
+
+                    if (!fs.existsSync(workspacePackagePath)) {
+                        // Doesn't exist in the workspace, so install it there
+                        lookupRegistryDependencies(pluginBinding.options.registryMap[packageName], workspaceDependencies)
+                            .push(`${packageName}@${pluginBinding.toSemverRange(packageDescriptor.devDependencies[packageName])}`);
+                    }
+                    else {
+                        // Does exist in the workspace, so if the version there satisfies our version requirements do nothing
+                        // and we'll use that version; otherwise, install it in the package
+                        let workspacePackageVersion = require(path.join(workspacePackagePath, "package.json")).version;
+
+                        if (!semver.satisfies(workspacePackageVersion, packageDescriptor.devDependencies[packageName])) {
+                            lookupRegistryDependencies(pluginBinding.options.registryMap[packageName], packageDependencies)
+                                .push(`${packageName}@${pluginBinding.toSemverRange(packageDescriptor.devDependencies[packageName])}`);
+
+                            Logger.warn(util.colors.yellow(`Package '${packageName}' cannot be satisfied by version ${workspacePackageVersion}. Installing locally.`));
+                        }
                     }
                 }
             }

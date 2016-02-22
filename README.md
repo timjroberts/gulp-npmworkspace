@@ -145,6 +145,10 @@ _options_: An optional hash of options:
 > *true* to continue streaming if the workspace package fails to install.  
 > The default is *true*.
 
+> _productionOnly_?: boolean  
+> *true* to install only the production dependencies.  
+> The default is *false*.
+
 > _minimizeSizeOnDisk_?: boolean  
 > *true* to apply an installation strategy that attempts to install all `devDependencies` and
 > `optionalDependencies` at the workspace level. This is a useful approach when all the workspace packages
