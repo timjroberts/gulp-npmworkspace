@@ -101,7 +101,7 @@ class TypeScriptCompilerBinding {
             });
         }
         else {
-            glob.sync("./*.ts", { cwd: packagePath, nosort: true }).forEach((srcFile) => {
+            glob.sync("./*.{ts,tsx}", { cwd: packagePath, nosort: true }).forEach((srcFile) => {
                 fileStream.write(`${os.EOL}\"${srcFile}\"`);
             });
 
@@ -109,7 +109,7 @@ class TypeScriptCompilerBinding {
             let srcFolders: Array<string> = _.difference(packageFolders, filesOrFolders); // remove the excluded folders
 
             srcFolders.forEach((srcFolder) => {
-                glob.sync(`./${srcFolder}/**/*.ts`, { cwd: packagePath, nosort: true }).forEach((srcFile) => {
+                glob.sync(`./${srcFolder}/**/*.{ts,tsx}`, { cwd: packagePath, nosort: true }).forEach((srcFile) => {
                     fileStream.write(`${os.EOL}\"${srcFile}\"`);
                 });
             });
