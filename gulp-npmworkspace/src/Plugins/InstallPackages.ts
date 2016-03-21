@@ -145,7 +145,7 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                         continue;
                     }
 
-                    let workspacePackagePath = path.join(process.cwd(), "node_modules", packageName);
+                    let workspacePackagePath = path.join(pluginBinding.options.cwd, "node_modules", packageName);
 
                     if (!fs.existsSync(workspacePackagePath)) {
                         // Doesn't exist in the workspace, so install it there

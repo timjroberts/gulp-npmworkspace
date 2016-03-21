@@ -120,7 +120,7 @@ class TypeScriptCompilerBinding {
 
     public shellExecuteTsc(packagePath: string, compilerArgs: Array<string> = [ ]): void {
         let hasLocalTypeScript = fs.existsSync(path.join(packagePath, "node_modules", "typescript"));
-        let result = childProcess.spawnSync(path.join(hasLocalTypeScript ? "." : "..", "node_modules/.bin", process.platform === "win32" ? "tsc.cmd" : "tsc"), compilerArgs, { cwd: packagePath });
+        let result = childProcess.spawnSync(path.join(hasLocalTypeScript ? "." : this.options.cwd, "node_modules/.bin", process.platform === "win32" ? "tsc.cmd" : "tsc"), compilerArgs, { cwd: packagePath });
 
         if (result.error) throw new Error("Could not locate a TypeScript compiler.");
 
