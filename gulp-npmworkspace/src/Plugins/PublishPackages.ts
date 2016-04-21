@@ -5,6 +5,7 @@ import * as _ from "underscore";
 import * as jsonFile from "jsonfile";
 import File = require("vinyl");
 import * as path from "path";
+import fs = require("fs");
 
 import {ConditionableAction, AsyncAction, executeAsynchronousActions} from "./ConditionableAction";
 import {NpmPluginBinding} from "./utilities/NpmPluginBinding";
@@ -98,6 +99,22 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
         let publishFunc = () => {
             if (pluginBinding.options.shrinkWrap) {
                 pluginBinding.shellExecuteNpm(packagePath, [ "shrinkwrap" ]);
+
+                //
+                // Filter out any 'resolved' fields
+
+                let shrinkWrapFilePath = path.join(packagePath, "npm-shrinkwrap.json");
+                let shrinkwrap = require(shrinkWrapFilePath);
+
+                function replacer(key, val) {
+                    if (key === "resolved" && this.from && this.version) {
+                        return undefined;
+                    }
+
+                    return val;
+                }
+
+                fs.writeFileSync(shrinkWrapFilePath, JSON.stringify(shrinkwrap, replacer, 2));
             }
 
             let versionBump = pluginBinding.options.versionBump;
