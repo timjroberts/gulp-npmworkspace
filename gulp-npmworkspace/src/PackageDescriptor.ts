@@ -10,6 +10,8 @@ export interface PackageDescriptor {
 
     dependencies?: IDictionary<string>;
 
+    peerDependencies?: IDictionary<string>;
+
     devDependencies?: IDictionary<string>;
 
     optionalDependencies?: IDictionary<string>;

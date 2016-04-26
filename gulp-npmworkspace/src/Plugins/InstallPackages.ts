@@ -99,6 +99,22 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 if (mappedPackage) {
                     linkWorkspacePackage(pluginBinding, packageName, packagePath, mappedPackage.packagePath);
 
+                    //
+                    // Bring in any peer dependencies of the package we've just created a link to
+
+                    for (let peerPackageName in mappedPackage.packageDescriptor.peerDependencies) {
+                        let peerMappedPackage = packageMap[peerPackageName];
+
+                        if (peerMappedPackage) {
+                            linkWorkspacePackage(pluginBinding, peerPackageName, packagePath, peerMappedPackage.packagePath);
+
+                            continue;
+                        }
+
+                        lookupRegistryDependencies(pluginBinding.options.registryMap[packageName], packageDependencies)
+                            .push(`${peerPackageName}@${pluginBinding.toSemverRange(mappedPackage.packageDescriptor.peerDependencies[peerPackageName])}`);
+                    }
+
                     continue;
                 }
 
@@ -112,12 +128,37 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                     .push(`${packageName}@${pluginBinding.toSemverRange(packageDescriptor.dependencies[packageName])}`);
             }
 
+            //
+            // If the current workspace package contains a peer dependency to another workspace package (or an external package), then create a
+            // reference to it so that we can resolve it.
+
+            for (let packageName in packageDescriptor.peerDependencies) {
+                mappedPackage = packageMap[packageName];
+                externalPackagePath = pluginBinding.options.externalWorkspacePackageMap[packageName];
+
+                if (!pluginBinding.options.disableExternalWorkspaces && (mappedPackage && externalPackagePath)) {
+                    Logger.warn(`Package '${packageName}' is both a workspace package and has an entry in options.externalWorkspacePackageMap. Using workspace package.`);
+                }
+
+                if (mappedPackage) {
+                    linkWorkspacePackage(pluginBinding, packageName, packagePath, mappedPackage.packagePath);
+
+                    continue;
+                }
+
+                if (!pluginBinding.options.disableExternalWorkspaces && externalPackagePath) {
+                    linkExternalPackage(pluginBinding, packageName, packagePath, externalPackagePath);
+
+                    continue;
+                }
+            }
+
             if (!pluginBinding.options.productionOnly) {
                 let devDependencies: IDictionary<string> = { };
 
                 _.extend(devDependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
 
-                for (var packageName in devDependencies) {
+                for (let packageName in devDependencies) {
                     mappedPackage = packageMap[packageName];
                     externalPackagePath = pluginBinding.options.externalWorkspacePackageMap[packageName];
 

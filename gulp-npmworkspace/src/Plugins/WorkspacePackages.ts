@@ -79,7 +79,7 @@ function collectPackages(context: PackageDependencyContext): TransformAction {
         context.addPackage(packageDescriptor, file);
 
         let packageDependencies: IDictionary<string>
-            = _.extend({ }, packageDescriptor.dependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
+            = _.extend({ }, packageDescriptor.dependencies, packageDescriptor.peerDependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
 
         for (let packageName in packageDependencies) {
             context.addPackageDependency(packageDescriptor, packageName);
