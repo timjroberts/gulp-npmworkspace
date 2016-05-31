@@ -43,17 +43,48 @@ export class NpmPluginBinding<TOptions> {
     }
 
     /**
-     * Creates a symbolic link to a folder representing a package.
+     * Creates a symbolic link to a folder representing a package. If the package name represents a scoped
+     * package name then this method delegates to {NpmPluginBinding#createScopedPackageSymLink}.
      *
      * @param sourcePath The path of the souce package (its node_modules folder will be updated).
      * @param packageName The name of the package being symbolically linked.
      * @param targetPath The path of the folder that is being linked.
      */
     public createPackageSymLink(sourcePath: string, packageName: string, targetPath: string): void {
+        let packageInfo = /(@.*)\/(.*)+|(.*)+/.exec(packageName);
+
+        let scopeName = packageInfo[1];
+
+        packageName = scopeName !== undefined ? packageInfo[2] : packageInfo[3];
+
+        if (scopeName) return this.createScopedPackageSymLink(sourcePath, scopeName, packageName, targetPath);
+
         sourcePath = path.resolve(sourcePath, "node_modules");
 
         if (fs.existsSync(path.resolve(sourcePath, packageName))) return;
         if (!fs.existsSync(sourcePath)) fs.mkdirSync(sourcePath);
+
+        fs.symlinkSync(targetPath, path.join(sourcePath, packageName), "dir");
+    }
+
+    /**
+     * Creates a symbolic link to a folder representing a scoped package.
+     *
+     * @param sourcePath The path of the souce package (its node_modules folder will be updated).
+     * @param scopeName The name of the scope to use when creating the smbolic link.
+     * @param packageName The name of the package being symbolically linked.
+     * @param targetPath The path of the folder that is being linked.
+     */
+    public createScopedPackageSymLink(sourcePath: string, scopeName: string, packageName: string, targetPath: string): void {
+        sourcePath = path.resolve(sourcePath, "node_modules");
+
+        if (!fs.existsSync(sourcePath)) fs.mkdirSync(sourcePath);
+
+        sourcePath = path.resolve(sourcePath, scopeName);
+
+        if (!fs.existsSync(sourcePath)) fs.mkdirSync(sourcePath);
+
+        if (fs.existsSync(path.resolve(sourcePath, packageName))) return;
 
         fs.symlinkSync(targetPath, path.join(sourcePath, packageName), "dir");
     }

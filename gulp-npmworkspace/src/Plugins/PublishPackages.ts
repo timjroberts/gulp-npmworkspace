@@ -37,6 +37,17 @@ export interface NpmPublishOptions {
      * A combination of a condition and an action that will be executed prior to the package being published.
      */
     prePublishActions?: Array<ConditionableAction<AsyncAction>>;
+
+    /**
+     * The optional tag name to use when publishing a package.
+     */
+    tag?: string;
+
+    /**
+     * Only applies when publishing scoped packags. Set to "public" when publishing to the public npm registry and
+     * you're not using an Enterprise account.
+     */
+    access?: string;
 }
 
 /**
@@ -127,7 +138,12 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
                 file.contents = new Buffer(JSON.stringify(packageDescriptor));
             }
 
-            pluginBinding.shellExecuteNpm(packagePath, [ "publish" ]);
+            let publishArgs = [ "publish" ];
+
+            if (pluginBinding.options.tag) publishArgs.push("--tag " + pluginBinding.options.tag);
+            if (pluginBinding.options.access) publishArgs.push("--access " + pluginBinding.options.access);
+
+            pluginBinding.shellExecuteNpm(packagePath, publishArgs);
 
             resolve();
         };
