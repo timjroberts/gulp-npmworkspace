@@ -1,6 +1,6 @@
 {
     "name": "gulp-npmworkspace",
-    "version": "1.1.20",
+    "version": "1.1.21",
     "description": "Provides 'workspace' like utilities to simplify the link-ing and install-ing of npm packages during development.",
     "author": "Tim Roberts <tim@timjroberts.com>",
     "license": "BSD",
