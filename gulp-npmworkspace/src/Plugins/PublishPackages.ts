@@ -107,7 +107,7 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
     return new Promise<void>((resolve, reject) => {
         Logger.info(util.colors.bold(`Publishing workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
 
-        let publishFunc = () => {
+        let prepareFunction = () => {
             if (pluginBinding.options.shrinkWrap) {
                 pluginBinding.shellExecuteNpm(packagePath, [ "shrinkwrap" ]);
 
@@ -137,35 +137,30 @@ function npmPublishPackage(packageDescriptor: PackageDescriptor, packagePath: st
 
                 file.contents = new Buffer(JSON.stringify(packageDescriptor));
             }
+        };
 
+        let publishFunction = () => {
             let publishArgs = [ "publish" ];
 
             if (pluginBinding.options.tag) publishArgs.push("--tag " + pluginBinding.options.tag);
             if (pluginBinding.options.access) publishArgs.push("--access " + pluginBinding.options.access);
 
             pluginBinding.shellExecuteNpm(packagePath, publishArgs);
-
-            resolve();
         };
 
         try {
-            let prePublishActions: ConditionableAction<AsyncAction>[]
-                = _.union(pluginBinding.options.prePublishActions, file["getWorkspace"]()["prePublish"]);
+            let prePublishActions: ConditionableAction<AsyncAction>[] =
+                _.union(pluginBinding.options.prePublishActions, file["getWorkspace"]()["prePublish"]);
 
-            if (prePublishActions && prePublishActions.length > 0) {
-                Logger.verbose(`Running pre-publish actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
+            Logger.verbose(`Running pre-publish actions for workspace package '${util.colors.cyan(packageDescriptor.name)}'`);
 
-                executeAsynchronousActions(prePublishActions, packageDescriptor, packagePath)
-                    .then(() => {
-                        publishFunc();
-                    })
-                    .catch((error) => {
-                        handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
-                    });
-            }
-            else {
-                publishFunc();
-            }
+            executeAsynchronousActions(prePublishActions || [], packageDescriptor, packagePath)
+            .then(prepareFunction)
+            .then(publishFunction)
+            .then(resolve)
+            .catch((error) => {
+                handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
+            });
         }
         catch (error) {
             handleError(error, packageDescriptor.name, pluginBinding.options.continueOnError, reject);
