@@ -47,7 +47,7 @@ Scenario: Layered dependency stack
         | package-d | package-c    |
     When the workspace packages are streamed
     Then package "package-a" comes before all others
-     And packages "package-b, package-c" comes before "package-d"
+    #And packages "package-b, package-c" comes before "package-d"  # This not longer holds for npm@3+
 
 Scenario Outline: Allow named packages
     Sometimes there will be a need to execute a workspace level task only for a named workspace package. For

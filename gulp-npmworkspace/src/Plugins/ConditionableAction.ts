@@ -43,26 +43,21 @@ export interface ConditionableAction<TAction> {
  */
 export function executeAsynchronousActions(actions: ConditionableAction<AsyncAction>[], packageDescriptor: PackageDescriptor, packagePath: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
-        let iterate = function(currentIdx: number) {
-            if (currentIdx < actions.length) {
-                let action = actions[currentIdx];
-
-                let runAction = action.condition ? action.condition(packageDescriptor, packagePath) : true;
-
-                if (runAction) {
-                    (<AsyncAction>action.action)(packageDescriptor, packagePath, (error?: Error) => {
-                        if (error) return reject(error);
-
-                        iterate(currentIdx + 1);
-                    });
-                }
-                else {
-                    iterate(currentIdx + 1);
-                }
+        let iterate = function(currentIdx: number):any {
+            if (currentIdx >= actions.length) {
+                return resolve();
             }
-            else {
-                resolve();
+            let action = actions[currentIdx];
+            let runAction = action.condition ? action.condition(packageDescriptor, packagePath) : true;
+            if (!runAction) {
+                return setImmediate(iterate.bind(this, currentIdx + 1));
             }
+
+            (<AsyncAction>action.action)(packageDescriptor, packagePath, (error?: Error) => {
+                if (error) return reject(error);
+
+                return setImmediate(iterate.bind(this, currentIdx + 1))
+            });
         };
 
         iterate(0);
