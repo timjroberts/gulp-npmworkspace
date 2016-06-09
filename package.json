@@ -17,6 +17,6 @@
         "through2": "~2.0.0",
         "rimraf": "^2.5.1",
         "typings": "~0.6.2",
-        "typescript": "~1.7.5"
+        "typescript": "~1.8.10"
     }
 }
