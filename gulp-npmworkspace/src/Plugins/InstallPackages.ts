@@ -96,7 +96,7 @@ function npmInstallPackage(packageDescriptor: PackageDescriptor, packagePath: st
                     Logger.warn(`Package '${packageName}' is both a workspace package and has an entry in options.externalWorkspacePackageMap. Using workspace package.`);
                 }
 
-                if (mappedPackage) {
+                if (!isRelativePathReference(packageDescriptor.dependencies[packageName]) && mappedPackage) {
                     linkWorkspacePackage(pluginBinding, packageName, packagePath, mappedPackage.packagePath);
 
                     continue;
@@ -232,6 +232,17 @@ function lookupRegistryDependencies(registry: string, registryMap: IDictionary<A
     }
 
     return dependencies;
+}
+
+/**
+ * Determines if a package reference is a relative path.
+ * 
+ * @param packageReference The package reference.
+ * 
+ * @returns true if the package reference is a relative path; otherwise false.
+ */
+function isRelativePathReference(packageReference: string): boolean {
+    return packageReference.substring(0, 2) === "./" || packageReference.substring(0, 3) === "../";
 }
 
 /**
