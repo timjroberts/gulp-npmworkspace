@@ -158,12 +158,6 @@ function buildTypeScriptPackage(packageDescriptor: PackageDescriptor, packagePat
 
             Logger.info(util.colors.bold(`Compiling workspace package '${util.colors.cyan(packageDescriptor.name)}'`));
 
-            if (typeScriptConfigurations.length === 1) {
-                pluginBinding.shellExecuteTsc(packagePath, []);
-
-                return resolve();
-            }
-
             let tscArgFilePromises = typeScriptConfigurations.map((typeScriptConfiguration, idx) => new Promise<string>((resolve, reject) => {
                 let argsFileName = `_${idx.toString()}_${TSC_ARGS_FILENAME}`;
 
