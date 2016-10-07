@@ -85,7 +85,10 @@ class TypeScriptCompilerBinding {
         });
 
         for (let compilerOption in compilerOptions) {
-            if (typeof compilerOptions[compilerOption] === "string") {
+            if ((compilerOption === "lib" || compilerOption === "types") && Array.isArray(compilerOptions[compilerOption]) ) {
+                fileStream.write(`--${compilerOption} ${compilerOptions[compilerOption].join(',')} `);
+            }
+            else if (typeof compilerOptions[compilerOption] === "string") {
                 fileStream.write(`--${compilerOption} ${compilerOptions[compilerOption]} `);
             }
             else {
