@@ -22,6 +22,12 @@ export interface WorkspacePackagesOptions {
      * An array of additional paths to include when looking for workspace packages.
      */
     additionalPaths?: Array<string>;
+
+    /**
+     * Flag to indicate what packages should be gathered. If `true`, only production
+     * dependencies will be followed. Defaults to `false`
+     */
+    productionOnly?: boolean;
 }
 
 /**
@@ -37,6 +43,7 @@ export function workspacePackages(options?: gulp.SrcOptions & NpmWorkspacePlugin
     options = _.extend(getWorkspacePluginOptions(options), options, { read: true });
 
     let context = new PackageDependencyContext();
+    let productionOnly = options.productionOnly || false;
 
     let packageSourcePaths = [ "./package.json", "./*/package.json" ];
 
@@ -45,7 +52,7 @@ export function workspacePackages(options?: gulp.SrcOptions & NpmWorkspacePlugin
     }
 
     let packagesStream = gulp.src(packageSourcePaths, options)
-        .pipe(through.obj(collectPackages(context), streamPackages(context, options)));
+        .pipe(through.obj(collectPackages(context, productionOnly), streamPackages(context, options)));
 
     packagesStream.once("error", () => { });
 
@@ -64,7 +71,7 @@ export function workspacePackages(options?: gulp.SrcOptions & NpmWorkspacePlugin
  * a flush function to output the received 'package.json' files in dependency order once all the files
  * have been received.
  */
-function collectPackages(context: PackageDependencyContext): TransformAction {
+function collectPackages(context: PackageDependencyContext, productionOnly: boolean): TransformAction {
     return function (file: File, encoding, callback: TransformCallback) {
         if (file.isStream()) {
             return callback(new util.PluginError(PLUGIN_NAME, "Streams are not supported."));
@@ -78,11 +85,17 @@ function collectPackages(context: PackageDependencyContext): TransformAction {
 
         context.addPackage(packageDescriptor, file);
 
-        let packageDependencies: IDictionary<string>
-            = _.extend({ }, packageDescriptor.dependencies, packageDescriptor.peerDependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
-
-        for (let packageName in packageDependencies) {
+        for (let packageName in packageDescriptor.dependencies) {
             context.addPackageDependency(packageDescriptor, packageName);
+        }
+
+        if ( ! productionOnly ) {
+            let extendedDependencies: IDictionary<string>
+                = _.extend({ }, packageDescriptor.peerDependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
+
+            for (let packageName in packageDependencies) {
+                context.addPackageDependency(packageDescriptor, packageName);
+            }
         }
 
         callback();
