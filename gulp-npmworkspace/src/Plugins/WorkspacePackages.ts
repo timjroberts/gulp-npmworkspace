@@ -93,7 +93,7 @@ function collectPackages(context: PackageDependencyContext, productionOnly: bool
             let extendedDependencies: IDictionary<string>
                 = _.extend({ }, packageDescriptor.peerDependencies, packageDescriptor.devDependencies, packageDescriptor.optionalDependencies);
 
-            for (let packageName in packageDependencies) {
+            for (let packageName in extendedDependencies) {
                 context.addPackageDependency(packageDescriptor, packageName);
             }
         }
